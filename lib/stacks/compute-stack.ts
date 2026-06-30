@@ -3,6 +3,8 @@ import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as ecsPatterns from "aws-cdk-lib/aws-ecs-patterns";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as path from "path";
 import { Construct } from "constructs";
 
@@ -18,6 +20,7 @@ interface ComputeStackProps extends cdk.StackProps {
   documentsBucketName: string;
   userPoolId: string;
   userPoolClientId: string;
+  distribution: cloudfront.Distribution; // from StorageStack — used to add the /api/* proxy behavior
 }
 
 export class ComputeStack extends cdk.Stack {
@@ -94,6 +97,29 @@ export class ComputeStack extends cdk.Stack {
       scaleInCooldown: cdk.Duration.minutes(5),
       scaleOutCooldown: cdk.Duration.seconds(60),
     });
+
+    // CloudFront /api/* proxy behavior — fixes mixed content blocking.
+    // The frontend is served over HTTPS via CloudFront; the ALB only
+    // has an HTTP listener (no custom domain/ACM cert yet, see
+    // compute-stack.ts HTTP/HTTPS note above). Browsers silently block
+    // HTTPS pages from calling HTTP XHR endpoints — this surfaced as
+    // "upload tidak ada respon" with no visible error until DevTools
+    // Console was checked. Routing /api/* through CloudFront means the
+    // browser only ever talks HTTPS to CloudFront; CloudFront-to-ALB is
+    // server-to-server traffic, where HTTP is fine. No domain or ACM
+    // certificate needed to fix this.
+    props.distribution.addBehavior(
+      "/api/*",
+      new origins.LoadBalancerV2Origin(this.service.loadBalancer, {
+        protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+      }),
+      {
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED, // API responses are per-user/per-tenant, never cache
+        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER, // forwards Authorization header, query strings, body
+      }
+    );
 
     new cdk.CfnOutput(this, "ApiUrl", { value: `https://${this.service.loadBalancer.loadBalancerDnsName}` });
   }

@@ -124,6 +124,43 @@ export async function reviewRoutes(app: FastifyInstance) {
     }
   );
 
+  // GET /tenants/:tenantId/audit-trail — tenant-wide audit log listing
+  // (IDP Engine "Audit First" enterprise standard). Evidence Registry
+  // shows audit entries scoped to ONE shipment; this is the unscoped
+  // view across everything, for compliance officers reviewing activity
+  // broadly rather than investigating one declaration.
+  app.get<{ Params: { tenantId: string } }>("/tenants/:tenantId/audit-trail", async (request, reply) => {
+    const { tenantId } = request.params;
+    assertTenantAccess(request.auth!, tenantId);
+    return withTenant(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT id, action, entity_type, entity_id, changes, actor_id, created_at
+         FROM audit_log WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200`,
+        [tenantId]
+      );
+      return rows;
+    });
+  });
+
+  // GET /tenants/:tenantId/compliance — business rule validation
+  // failures across all shipments (Compliance Intelligence module),
+  // distinct from Validation Engine's cross-reference mismatches.
+  app.get<{ Params: { tenantId: string } }>("/tenants/:tenantId/compliance", async (request, reply) => {
+    const { tenantId } = request.params;
+    assertTenantAccess(request.auth!, tenantId);
+    return withTenant(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT bvr.id, bvr.shipment_id, s.shipment_number, bvr.field_key, bvr.rule_type, bvr.message, bvr.created_at
+         FROM business_validation_results bvr
+         JOIN shipments s ON s.id = bvr.shipment_id
+         WHERE bvr.tenant_id = $1 AND bvr.passed = false
+         ORDER BY bvr.created_at DESC LIMIT 200`,
+        [tenantId]
+      );
+      return rows;
+    });
+  });
+
   // GET /tenants/:tenantId/dashboard/summary — the single endpoint the
   // Dashboard UI reads from. Combines unified shipment status and
   // intake source identity into one consistent view instead of the

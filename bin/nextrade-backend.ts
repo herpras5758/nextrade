@@ -84,6 +84,7 @@ const computeStack = new ComputeStack(app, "NexTrade-Compute", {
   documentsBucketName: storageStack.documentsBucket.bucketName,
   userPoolId: authStack.userPool.userPoolId,
   userPoolClientId: authStack.userPoolClient.userPoolClientId,
+  distribution: storageStack.distribution,
 });
 
 cdk.Tags.of(app).add("Project", "NexTrade");

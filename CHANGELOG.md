@@ -399,3 +399,28 @@ lewat GitHub Actions, tidak perlu CloudShell lagi.
 ## v27 - 2026-06-30
 - GET /tenants/:id/documents sekarang sertakan intake_source (konsisten
   dengan identity tracking yang sudah dibangun).
+
+## v28 - 2026-06-30
+Backend untuk full menu UI:
+- GET /erp-field-mappings (registry config SAP, untuk ERP Mapping viewer)
+- GET /tenants/:id/audit-trail (listing terpusat, beda dari evidence-
+  registry yang scoped 1 shipment)
+- GET /tenants/:id/compliance (business_validation_results yang gagal,
+  lintas shipment -- Compliance Intelligence module)
+
+## v29 - 2026-06-30 (FIX KRITIS - mixed content blocking)
+- FIX: Browser block semua request API karena halaman HTTPS (CloudFront)
+  manggil endpoint HTTP (ALB) langsung -- "Mixed Content" error,
+  gejalanya "upload tidak ada respon" tanpa pesan jelas sampai
+  DevTools Console dicek.
+- Compute Stack sekarang nambah behavior /api/* di distribusi
+  CloudFront yang sama (dari Storage Stack), forward ke ALB lewat HTTP
+  (boleh, karena itu trafik server-ke-server CloudFront-ke-ALB, bukan
+  browser-ke-server). Browser cuma pernah bicara HTTPS ke CloudFront.
+- TIDAK perlu domain custom / ACM certificate untuk fix ini.
+- Cross-stack: ComputeStack sekarang terima `distribution` dari
+  StorageStack sebagai prop baru.
+- AKSI FRONTEND: ganti VITE_API_URL di .env.production dari URL ALB
+  langsung (http://NexTra-ApiSe-...) ke domain CloudFront
+  (https://d2c77tq2zhl72p.cloudfront.net) -- apiClient sudah otomatis
+  tambah /api/v1, jangan duplikat di env var.

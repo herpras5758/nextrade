@@ -2,8 +2,17 @@ import { FastifyInstance } from "fastify";
 import { withTenant } from "../db/pool.js";
 import { assertTenantAccess, requireRole } from "../middleware/auth.js";
 import { INTAKE_SOURCES } from "../lib/intakeSources.js";
+import { DEFAULT_SAP_FIELD_MAPPING } from "../lib/erp-adapters/erpAdapter.js";
 
 export async function emailIntakeRoutes(app: FastifyInstance) {
+  // GET /erp-field-mappings — the config-driven ERP field mapping
+  // registry (Rule #4 + #10). Read-only viewer for now; editing per-
+  // tenant mappings is part of the same Frontend-Configurable backlog
+  // as the AI Engine config (PROJECT_RULES.md Addendum F).
+  app.get("/erp-field-mappings", async () => ({
+    sap: DEFAULT_SAP_FIELD_MAPPING,
+  }));
+
   // GET /intake-sources — the full registry (Rule #4 config-driven list)
   // an admin's Settings → Integrations page renders from. No tenant
   // scoping needed here; this describes what the PLATFORM supports, not
