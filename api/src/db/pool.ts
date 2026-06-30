@@ -12,8 +12,31 @@ import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-sec
 let pool: pg.Pool | null = null;
 
 async function getDbCredentials() {
+  // Two different injection patterns exist in this codebase, both
+  // valid for their respective compute platform:
+  //   - ECS (Compute Stack): injects the SECRET VALUE directly as the
+  //     DB_CREDENTIALS env var via ecs.Secret.fromSecretsManager — no
+  //     extra API call needed at runtime, the container starts with it
+  //     already resolved.
+  //   - Lambda (Pipeline/Data/Auth stacks): only gets DB_SECRET_ARN as
+  //     a plain env var and fetches the value itself via
+  //     GetSecretValueCommand at invocation time.
+  // This function supports both, preferring the already-resolved value
+  // when present so the API doesn't make an unnecessary Secrets Manager
+  // call on every cold connection.
+  const injectedCredentials = process.env.DB_CREDENTIALS;
+  if (injectedCredentials) {
+    return JSON.parse(injectedCredentials) as {
+      username: string;
+      password: string;
+      host: string;
+      port: number;
+      dbname: string;
+    };
+  }
+
   const secretArn = process.env.DB_SECRET_ARN;
-  if (!secretArn) throw new Error("DB_SECRET_ARN not set");
+  if (!secretArn) throw new Error("Neither DB_CREDENTIALS nor DB_SECRET_ARN is set");
 
   const client = new SecretsManagerClient({});
   const result = await client.send(new GetSecretValueCommand({ SecretId: secretArn }));

@@ -377,3 +377,15 @@ lewat GitHub Actions, tidak perlu CloudShell lagi.
   bisa test login lewat `aws cognito-idp admin-initiate-auth` tanpa
   perlu implementasi SRP client-side. Frontend tetap pakai userSrp
   (lebih aman). Murni untuk kemudahan testing/ops.
+
+## v25 - 2026-06-30 (FIX KRITIS - API tidak bisa baca DB credentials)
+- FIX: api/src/db/pool.ts cari env var DB_SECRET_ARN, padahal Compute
+  Stack (ECS) inject ISI secret langsung sebagai DB_CREDENTIALS lewat
+  ecs.Secret.fromSecretsManager -- dua pola berbeda yang tidak pernah
+  disatukan. getDbCredentials() sekarang dukung KEDUANYA: pakai
+  DB_CREDENTIALS kalau ada (ECS, sudah ter-resolve, hemat 1 API call),
+  fallback ke fetch via DB_SECRET_ARN kalau tidak (Lambda).
+- Ditemukan lewat test end-to-end pertama: login Cognito sukses, panggil
+  GET /dashboard/summary, dapat 500 "DB_SECRET_ARN not set" -- bukti
+  lain kenapa testing end-to-end penting, bukan cuma percaya deploy
+  sukses.
