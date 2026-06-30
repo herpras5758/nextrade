@@ -78,7 +78,7 @@ export async function documentRoutes(app: FastifyInstance) {
 
     return withTenant(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT id, file_name, document_type, status, uploaded_at
+        `SELECT id, file_name, document_type, status, intake_source, uploaded_at
          FROM documents WHERE tenant_id = $1 ORDER BY uploaded_at DESC LIMIT 200`,
         [tenantId]
       );

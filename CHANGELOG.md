@@ -395,3 +395,7 @@ lewat GitHub Actions, tidak perlu CloudShell lagi.
   (JWT cuma punya UUID, bukan nama tampilan).
 - Fix bug korup di review.ts (str_replace nimpa bagian yang salah,
   ketahuan & diperbaiki sebelum sempat di-deploy).
+
+## v27 - 2026-06-30
+- GET /tenants/:id/documents sekarang sertakan intake_source (konsisten
+  dengan identity tracking yang sudah dibangun).
