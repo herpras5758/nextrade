@@ -83,7 +83,14 @@ export class AuthStack extends cdk.Stack {
     );
 
     this.userPoolClient = this.userPool.addClient("NexTradeWebClient", {
-      authFlows: { userSrp: true },
+      authFlows: {
+        userSrp: true,
+        // Enables `aws cognito-idp admin-initiate-auth` for CLI/testing
+        // purposes without implementing client-side SRP math. The
+        // frontend SDK still uses userSrp (more secure, no password
+        // transmitted); this flow exists for ops/testing convenience.
+        adminUserPassword: true,
+      },
       generateSecret: false, // SPA — public client, PKCE handled by frontend SDK
       accessTokenValidity: cdk.Duration.hours(1),
       refreshTokenValidity: cdk.Duration.days(30),

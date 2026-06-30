@@ -371,3 +371,9 @@ lewat GitHub Actions, tidak perlu CloudShell lagi.
       --cli-binary-format raw-in-base64-out /tmp/seed-out.json
     cat /tmp/seed-out.json
   SIMPAN temporaryPassword dari output -- tidak bisa diambil ulang.
+
+## v24 - 2026-06-30
+- Tambah authFlows.adminUserPassword: true di UserPoolClient -- supaya
+  bisa test login lewat `aws cognito-idp admin-initiate-auth` tanpa
+  perlu implementasi SRP client-side. Frontend tetap pakai userSrp
+  (lebih aman). Murni untuk kemudahan testing/ops.
