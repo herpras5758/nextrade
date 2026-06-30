@@ -1,0 +1,32 @@
+{
+  "name": "nextrade-backend",
+  "version": "0.1.0",
+  "bin": {
+    "nextrade-backend": "bin/nextrade-backend.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "aws-cdk": "^2.150.0",
+    "typescript": "^5.5.4",
+    "ts-node": "^10.9.2",
+    "esbuild": "^0.23.1"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.150.0",
+    "constructs": "^10.3.0",
+    "source-map-support": "^0.5.21",
+    "@aws-sdk/client-bedrock-runtime": "^3.620.0",
+    "@aws-sdk/client-textract": "^3.620.0",
+    "@aws-sdk/client-sfn": "^3.620.0",
+    "@aws-sdk/client-s3": "^3.620.0",
+    "@aws-sdk/client-secrets-manager": "^3.620.0",
+    "pg": "^8.12.0",
+    "sharp": "^0.33.5",
+    "mailparser": "^3.7.1"
+  }
+}
