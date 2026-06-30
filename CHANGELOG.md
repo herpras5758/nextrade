@@ -345,3 +345,29 @@ lewat GitHub Actions, tidak perlu CloudShell lagi.
   baru -- AWS cuma izinkan 1 provider per URL unik per akun.
 - 01-audit-account.sh ditambah section IAM OIDC Providers supaya gap
   serupa tidak lolos lagi ke depan.
+
+## v22 - 2026-06-30
+- FIX: em-dash lagi (sama persis bug data-stack.ts dulu) di
+  GitHubDeployRole description -- IAM Role description punya batasan
+  ASCII yang sama dengan EC2 SecurityGroup description. Diganti ke
+  tanda hubung biasa.
+- Scan ulang SEMUA file untuk em-dash di string literal: ketemu 2 lagi
+  (lambda/shared/businessValidation.ts pesan validasi, lambda/
+  ai-engine-adapter Error message) -- keduanya AMAN karena tidak pernah
+  jadi property resource AWS (satu tersimpan sebagai teks di database,
+  satu jadi pesan Error JS biasa), jadi tidak diubah.
+
+## v23 - 2026-06-30
+- Tambah SeedDataFn (lambda/seed-data) di Auth Stack -- Lambda
+  sekali-pakai untuk membuat tenant pertama + admin user Cognito.
+  Pola sama dengan ApplySchemaFn: manual invoke sekali, BUKAN custom
+  resource (supaya tidak re-run/duplikat tiap deploy).
+- AuthStack sekarang terima vpc, dbSecurityGroup, dbSecretArn (cross-
+  stack dependency baru ke DataStack) -- dibutuhkan SeedDataFn untuk
+  insert row tenant ke RDS.
+- Cara pakai setelah deploy NexTrade-Auth:
+    aws lambda invoke --function-name nextrade-seed-data --region ap-southeast-3 \
+      --payload '{"tenantName":"PT Ungaran Sari Garments","tenantCode":"USG","adminEmail":"admin@ungaransari.test"}' \
+      --cli-binary-format raw-in-base64-out /tmp/seed-out.json
+    cat /tmp/seed-out.json
+  SIMPAN temporaryPassword dari output -- tidak bisa diambil ulang.

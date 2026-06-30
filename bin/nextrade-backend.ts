@@ -49,7 +49,12 @@ const dataStack = new DataStack(app, "NexTrade-Data", {
   vpc: networkStack.vpc,
 });
 
-const authStack = new AuthStack(app, "NexTrade-Auth", { env });
+const authStack = new AuthStack(app, "NexTrade-Auth", {
+  env,
+  vpc: networkStack.vpc,
+  dbSecurityGroup: dataStack.dbSecurityGroup,
+  dbSecretArn: dataStack.dbSecret.secretArn,
+});
 
 const storageStack = new StorageStack(app, "NexTrade-Storage", { env });
 

@@ -27,6 +27,7 @@
     "@aws-sdk/client-secrets-manager": "^3.620.0",
     "pg": "^8.12.0",
     "sharp": "^0.33.5",
-    "mailparser": "^3.7.1"
+    "mailparser": "^3.7.1",
+    "@aws-sdk/client-cognito-identity-provider": "^3.620.0"
   }
 }

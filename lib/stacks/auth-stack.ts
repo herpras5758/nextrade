@@ -1,5 +1,10 @@
 import * as cdk from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as path from "path";
 import { Construct } from "constructs";
 
 // Auth Stack — Cognito User Pool.
@@ -15,11 +20,17 @@ import { Construct } from "constructs";
 // attribute, so we get IAM-integrated authorization for free on any
 // API Gateway route that needs it.
 
+interface AuthStackProps extends cdk.StackProps {
+  vpc: ec2.Vpc;
+  dbSecurityGroup: ec2.SecurityGroup;
+  dbSecretArn: string;
+}
+
 export class AuthStack extends cdk.Stack {
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: AuthStackProps) {
     super(scope, id, props);
 
     this.userPool = new cognito.UserPool(this, "NexTradeUserPool", {
@@ -78,7 +89,40 @@ export class AuthStack extends cdk.Stack {
       refreshTokenValidity: cdk.Duration.days(30),
     });
 
+    // One-off seed-data Lambda — see lambda/seed-data/index.ts. Same
+    // pattern as ApplySchemaFn in DataStack: manually invoked once, not
+    // a custom resource, since "create the first tenant + admin user"
+    // is a one-time bootstrap action, not infrastructure that should
+    // re-run on every stack update.
+    const seedDataFn = new lambdaNode.NodejsFunction(this, "SeedDataFn", {
+      functionName: "nextrade-seed-data",
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "../../lambda/seed-data/index.ts"),
+      timeout: cdk.Duration.minutes(2),
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [props.dbSecurityGroup],
+      environment: {
+        DB_SECRET_ARN: props.dbSecretArn,
+        COGNITO_USER_POOL_ID: this.userPool.userPoolId,
+      },
+      bundling: { externalModules: ["@aws-sdk/*"] },
+    });
+    seedDataFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [props.dbSecretArn],
+      })
+    );
+    seedDataFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["cognito-idp:AdminCreateUser", "cognito-idp:AdminAddUserToGroup"],
+        resources: [this.userPool.userPoolArn],
+      })
+    );
+
     new cdk.CfnOutput(this, "UserPoolId", { value: this.userPool.userPoolId });
     new cdk.CfnOutput(this, "UserPoolClientId", { value: this.userPoolClient.userPoolClientId });
+    new cdk.CfnOutput(this, "SeedDataFunctionName", { value: seedDataFn.functionName });
   }
 }
