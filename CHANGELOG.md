@@ -389,3 +389,9 @@ lewat GitHub Actions, tidak perlu CloudShell lagi.
   GET /dashboard/summary, dapat 500 "DB_SECRET_ARN not set" -- bukti
   lain kenapa testing end-to-end penting, bukan cuma percaya deploy
   sukses.
+
+## v26 - 2026-06-30
+- Tambah GET /tenants/:tenantId -- lookup nama tenant setelah login
+  (JWT cuma punya UUID, bukan nama tampilan).
+- Fix bug korup di review.ts (str_replace nimpa bagian yang salah,
+  ketahuan & diperbaiki sebelum sempat di-deploy).

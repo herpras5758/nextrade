@@ -190,4 +190,20 @@ export async function reviewRoutes(app: FastifyInstance) {
       };
     });
   });
+
+  // GET /tenants/:tenantId — minimal tenant info lookup. Frontend calls
+  // this right after login (custom:tenant_ids in the JWT only has UUIDs,
+  // not display names) to populate the tenant switcher.
+  app.get<{ Params: { tenantId: string } }>("/tenants/:tenantId", async (request, reply) => {
+    const { tenantId } = request.params;
+    assertTenantAccess(request.auth!, tenantId);
+    return withTenant(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT id, code, name, group_name, default_language FROM tenants WHERE id = $1`,
+        [tenantId]
+      );
+      if (rows.length === 0) return reply.code(404).send({ error: "Tenant not found" });
+      return rows[0];
+    });
+  });
 }
