@@ -39,10 +39,11 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
               detected_type, detected_category, action,
               matched_shipment_id, match_confidence, analysis_detail
        FROM upload_session_files
-       WHERE session_id = $1 AND action NOT IN ('DUPLICATE', 'SKIP')`,
+       WHERE session_id = $1 AND action NOT IN ('DUPLICATE', 'SKIP') AND committed_document_id IS NULL`,
       [sessionId]
     );
 
+    console.log('[SessionCommit] files found:', files.length, files.map((f:any) => ({id:f.id, action:f.action, committed:f.committed_document_id})));
     const committed: string[] = [];
 
     const shipmentIds: string[] = [];
