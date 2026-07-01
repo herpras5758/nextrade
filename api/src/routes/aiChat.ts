@@ -20,7 +20,7 @@ export async function aiChatRoutes(app: FastifyInstance) {
       return withTenant(tenantId, async (client) => {
         // Load accessible tenant IDs (multi-BU support)
         const tenantIds: string[] = [tenantId];
-        const claimTenantIds = (req.auth!.claims?.['custom:tenant_ids'] ?? '').split(',').filter(Boolean);
+        const claimTenantIds = req.auth!.tenantIds;
         for (const tid of claimTenantIds) {
           if (!tenantIds.includes(tid)) tenantIds.push(tid);
         }
