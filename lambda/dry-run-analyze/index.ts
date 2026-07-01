@@ -3,10 +3,8 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getPool } from '../shared/dbPool.js';
 import { EvidenceWriter } from '../shared/evidence/index.js';
 import { findBestShipmentMatch, IncomingSignal } from '../shared/identity/shipmentMatcher.js';
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 
-const s3 = new S3Client({ requestChecksumCalculation: 'WHEN_REQUIRED', responseChecksumValidation: 'WHEN_REQUIRED' });
-const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
+const s3 = new S3Client({});
 const BUCKET = process.env.DOCUMENTS_BUCKET_NAME!;
 
 interface DryRunEvent {
