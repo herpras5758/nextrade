@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { Suspense } from "react";
 import { AppLayout } from "./components/layout/AppLayout";
 import { AuthGuard } from "./lib/AuthContext";
@@ -33,39 +33,43 @@ function EvidenceTimelinePage() {
   );
 }
 
+function ProtectedLayout() {
+  return (
+    <AuthGuard>
+      <AppLayout>
+        <Outlet />
+      </AppLayout>
+    </AuthGuard>
+  );
+}
+
 export default function App() {
   return (
     <Router>
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/*" element={
-            <AuthGuard>
-              <AppLayout>
-                <Routes>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/upload" element={<UploadWorkflowPage />} />
-                  <Route path="/documents" element={<DocumentsPage />} />
-                  <Route path="/idp-studio/:id" element={<IdpStudioPage />} />
-                  <Route path="/bc23" element={<Bc23WorkflowPage />} />
-                  <Route path="/bc23/:shipmentId" element={<Bc23WorkflowPage />} />
-                  <Route path="/review-queue" element={<ReviewQueuePage />} />
-                  <Route path="/settings" element={<AdminPanel />} />
-                  <Route path="/evidence-timeline" element={<EvidenceTimelinePage />} />
-                  <Route path="/audit-trail" element={<EvidenceTimelinePage />} />
-                  <Route path="/trade-intelligence" element={<ComingSoonPage moduleKey="tradeIntelligence" />} />
-                  <Route path="/compliance" element={<ComingSoonPage moduleKey="compliance" />} />
-                  <Route path="/evidence-registry" element={<ComingSoonPage moduleKey="evidenceRegistry" />} />
-                  <Route path="/ceisa-mapping" element={<ComingSoonPage moduleKey="ceisaMapping" />} />
-                  <Route path="/erp" element={<ComingSoonPage moduleKey="erp" />} />
-                  <Route path="/it-inventory" element={<ComingSoonPage moduleKey="itInventory" />} />
-                  <Route path="/email-intake" element={<ComingSoonPage moduleKey="emailIntake" />} />
-                  <Route path="/analytics" element={<ComingSoonPage moduleKey="analytics" />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </AppLayout>
-            </AuthGuard>
-          } />
+          <Route element={<ProtectedLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="/upload" element={<UploadWorkflowPage />} />
+            <Route path="/documents" element={<DocumentsPage />} />
+            <Route path="/idp-studio/:id" element={<IdpStudioPage />} />
+            <Route path="/bc23" element={<Bc23WorkflowPage />} />
+            <Route path="/bc23/:shipmentId" element={<Bc23WorkflowPage />} />
+            <Route path="/review-queue" element={<ReviewQueuePage />} />
+            <Route path="/settings" element={<AdminPanel />} />
+            <Route path="/evidence-timeline" element={<EvidenceTimelinePage />} />
+            <Route path="/audit-trail" element={<EvidenceTimelinePage />} />
+            <Route path="/trade-intelligence" element={<ComingSoonPage moduleKey="tradeIntelligence" />} />
+            <Route path="/compliance" element={<ComingSoonPage moduleKey="compliance" />} />
+            <Route path="/evidence-registry" element={<ComingSoonPage moduleKey="evidenceRegistry" />} />
+            <Route path="/ceisa-mapping" element={<ComingSoonPage moduleKey="ceisaMapping" />} />
+            <Route path="/erp" element={<ComingSoonPage moduleKey="erp" />} />
+            <Route path="/it-inventory" element={<ComingSoonPage moduleKey="itInventory" />} />
+            <Route path="/email-intake" element={<ComingSoonPage moduleKey="emailIntake" />} />
+            <Route path="/analytics" element={<ComingSoonPage moduleKey="analytics" />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
         </Routes>
       </Suspense>
     </Router>
