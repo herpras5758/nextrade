@@ -449,3 +449,13 @@ Backend untuk full menu UI:
   GET /documents/:id/download-url (presigned GET untuk PDF viewer),
   GET /documents/:id/extracted-fields (field CTDM yang diekstrak dari
   dokumen spesifik ini, untuk panel kanan IDP Studio)
+
+## v33 - 2026-07-01
+- FIX: S3 presigned PUT 403 SignatureDoesNotMatch. Root cause: browser
+  mengirim extra headers (sec-fetch-*, accept, dll) yang tidak ikut
+  di-sign saat presigned URL dibuat. Fix: unhoistableHeaders: new Set()
+  (kosong) supaya HANYA host yang masuk SignedHeaders, sehingga header
+  tambahan dari browser tidak mempengaruhi signature.
+- S3Client sekarang pakai requestChecksumCalculation: WHEN_REQUIRED
+  untuk disable checksum default AWS SDK v3 yang menjadi penyebab 403
+  awal (CRC32 ditambahkan otomatis).

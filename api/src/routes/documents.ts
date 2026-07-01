@@ -4,7 +4,10 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { withTenant } from "../db/pool.js";
 import { assertTenantAccess } from "../middleware/auth.js";
 
-const s3 = new S3Client({});
+const s3 = new S3Client({
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
+});
 const DOCUMENTS_BUCKET = process.env.DOCUMENTS_BUCKET!;
 
 export async function documentRoutes(app: FastifyInstance) {
@@ -47,11 +50,16 @@ export async function documentRoutes(app: FastifyInstance) {
         Bucket: DOCUMENTS_BUCKET,
         Key: key,
         ContentType: contentType,
-        ChecksumAlgorithm: undefined, // disable CRC32 checksum — newer AWS SDK adds it by default but browser fetch cannot compute and send a matching x-amz-checksum-crc32 header, causing S3 to return 403
       });
       const uploadUrl = await getSignedUrl(s3, command, {
         expiresIn: 300,
-        unhoistableHeaders: new Set(["x-amz-checksum-crc32", "x-amz-sdk-checksum-algorithm"]),
+        // Only sign the host header. If other headers (like content-type)
+        // are signed into the URL, the browser adds its own sec-fetch-*,
+        // accept, etc. headers that don't match the signature -> 403
+        // SignatureDoesNotMatch. Keeping SignedHeaders=host only means
+        // the browser can send whatever extra headers it wants without
+        // breaking the signature.
+        unhoistableHeaders: new Set(),
       });
 
       return { uploadUrl, s3Key: key, documentId: rows[0].id };
