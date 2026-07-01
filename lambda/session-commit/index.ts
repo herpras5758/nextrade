@@ -45,6 +45,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
 
     const committed: string[] = [];
 
+    const shipmentIds: string[] = [];
     for (const file of files) {
       // 3. Copy from staging → uploads
       const destKey = `uploads/${tenantId}/${crypto.randomUUID()}-${file.original_filename}`;
@@ -89,7 +90,6 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
       );
 
       committed.push(doc.id);
-      const shipmentIds: string[] = [];
 
       // 7. If matched to existing shipment, write SHIPMENT_MATCHED event and update
       if (file.matched_shipment_id && file.action !== 'NEW_SHIPMENT') {
