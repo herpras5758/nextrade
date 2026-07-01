@@ -120,5 +120,26 @@ export class DataStack extends cdk.Stack {
     new cdk.CfnOutput(this, "DbEndpoint", { value: this.cluster.dbInstanceEndpointAddress });
     new cdk.CfnOutput(this, "DbSecretArn", { value: this.dbSecret.secretArn });
     new cdk.CfnOutput(this, "ApplySchemaFunctionName", { value: applySchemaFn.functionName });
+
+    // Schema v2 apply lambda — Event Sourcing schema reset
+    const applySchemaV2Fn = new lambdaNode.NodejsFunction(this, "ApplySchemaV2Fn", {
+      functionName: "nextrade-apply-schema-v2",
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "../../lambda/apply-schema-v2/index.ts"),
+      timeout: cdk.Duration.minutes(3),
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [this.dbSecurityGroup],
+      environment: { DB_SECRET_ARN: this.dbSecret.secretArn },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+        loader: { ".sql": "text" },  // inlines schema-v2.sql as string at bundle time
+      },
+    });
+    applySchemaV2Fn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [this.dbSecret.secretArn],
+    }));
+    new cdk.CfnOutput(this, "ApplySchemaV2FunctionName", { value: applySchemaV2Fn.functionName });
   }
 }

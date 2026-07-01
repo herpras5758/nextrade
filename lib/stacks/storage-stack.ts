@@ -2,8 +2,18 @@ import * as cdk from "aws-cdk-lib";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
-import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as route53 from "aws-cdk-lib/aws-route53";
+import * as route53targets from "aws-cdk-lib/aws-route53-targets";
 import { Construct } from "constructs";
+
+interface StorageStackProps extends cdk.StackProps {
+  // Optional: set once domain is ordered and hosted zone created.
+  // Leave undefined to use default CloudFront domain (current setup).
+  // When set: CloudFront gets custom domain + ACM cert automatically.
+  domainName?: string;     // e.g. "nextrade.io"
+  hostedZoneId?: string;  // Route 53 Hosted Zone ID
+}
 
 // Storage Stack — document storage + frontend static hosting.
 //
@@ -19,7 +29,7 @@ export class StorageStack extends cdk.Stack {
   public readonly frontendBucket: s3.Bucket;
   public readonly distribution: cloudfront.Distribution;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: StorageStackProps) {
     super(scope, id, props);
 
     this.documentsBucket = new s3.Bucket(this, "DocumentsBucket", {
@@ -56,9 +66,33 @@ export class StorageStack extends cdk.Stack {
 
     const oac = new cloudfront.S3OriginAccessControl(this, "FrontendOac", {});
 
+    // Custom domain setup — optional, activated when domain is ordered.
+    // ACM certificate MUST be in us-east-1 for CloudFront (global requirement).
+    let certificate: acm.ICertificate | undefined;
+    let domainNames: string[] | undefined;
+
+    if (props?.domainName && props?.hostedZoneId) {
+      const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, "HostedZone", {
+        hostedZoneId: props.hostedZoneId,
+        zoneName: props.domainName,
+      });
+
+      // Certificate must be in us-east-1 — use DnsValidatedCertificate
+      // which auto-creates the Route 53 validation record.
+      certificate = new acm.Certificate(this, "Certificate", {
+        domainName: props.domainName,
+        subjectAlternativeNames: [`app.${props.domainName}`, `*.${props.domainName}`],
+        validation: acm.CertificateValidation.fromDns(hostedZone),
+      });
+
+      domainNames = [props.domainName, `app.${props.domainName}`];
+    }
+
     this.distribution = new cloudfront.Distribution(this, "FrontendDistribution", {
       comment: "NexTrade frontend (S3 + CloudFront)",
       defaultRootObject: "index.html",
+      // Custom domain — only set when domain is configured
+      ...(domainNames && certificate ? { domainNames, certificate } : {}),
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.frontendBucket, {
           originAccessControl: oac,
@@ -73,6 +107,21 @@ export class StorageStack extends cdk.Stack {
         { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html" },
       ],
     });
+
+    // DNS record — only create when domain is configured
+    if (props?.domainName && props?.hostedZoneId) {
+      const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, "HostedZoneRef", {
+        hostedZoneId: props.hostedZoneId,
+        zoneName: props.domainName,
+      });
+      new route53.ARecord(this, "AppDnsRecord", {
+        zone: hostedZone,
+        recordName: props.domainName,
+        target: route53.RecordTarget.fromAlias(
+          new route53targets.CloudFrontTarget(this.distribution)
+        ),
+      });
+    }
 
     new cdk.CfnOutput(this, "DocumentsBucketName", { value: this.documentsBucket.bucketName });
     new cdk.CfnOutput(this, "FrontendBucketName", { value: this.frontendBucket.bucketName });

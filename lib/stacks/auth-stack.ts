@@ -131,5 +131,30 @@ export class AuthStack extends cdk.Stack {
     new cdk.CfnOutput(this, "UserPoolId", { value: this.userPool.userPoolId });
     new cdk.CfnOutput(this, "UserPoolClientId", { value: this.userPoolClient.userPoolClientId });
     new cdk.CfnOutput(this, "SeedDataFunctionName", { value: seedDataFn.functionName });
+
+    // Seed v2 lambda — creates tenant + cognito user for event-sourced schema
+    const seedDataV2Fn = new lambdaNode.NodejsFunction(this, "SeedDataV2Fn", {
+      functionName: "nextrade-seed-data-v2",
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "../../lambda/seed-data-v2/index.ts"),
+      timeout: cdk.Duration.minutes(2),
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [props.dbSecurityGroup],
+      environment: {
+        DB_SECRET_ARN: props.dbSecretArn,
+        USER_POOL_ID: this.userPool.userPoolId,
+      },
+      bundling: { externalModules: ["@aws-sdk/*"] },
+    });
+    seedDataV2Fn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [props.dbSecretArn],
+    }));
+    seedDataV2Fn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["cognito-idp:AdminCreateUser","cognito-idp:AdminSetUserPassword","cognito-idp:AdminAddUserToGroup"],
+      resources: [this.userPool.userPoolArn],
+    }));
+    new cdk.CfnOutput(this, "SeedDataV2FunctionName", { value: seedDataV2Fn.functionName });
   }
 }

@@ -1,0 +1,81 @@
+# Identity Signal Weights — config-driven per Rule #4
+# Changing thresholds here does not require code redeploy.
+
+signal_types:
+  PO_NUMBER:
+    weight: 0.35
+    normalizer: strip_prefix
+    match_strategy: exact_after_normalize
+    min_confidence_to_include: 0.70
+  BL_NUMBER:
+    weight: 0.30
+    normalizer: strip_whitespace
+    match_strategy: exact_after_normalize
+    min_confidence_to_include: 0.75
+  INVOICE_NUMBER:
+    weight: 0.20
+    normalizer: strip_prefix
+    match_strategy: exact_after_normalize
+    min_confidence_to_include: 0.70
+  CONTAINER_NUMBER:
+    weight: 0.25
+    normalizer: iso6346
+    match_strategy: exact_after_normalize
+    min_confidence_to_include: 0.80
+  SUPPLIER_NAME:
+    weight: 0.10
+    normalizer: company_name
+    match_strategy: fuzzy
+    fuzzy_threshold: 0.85
+    min_confidence_to_include: 0.60
+  CONSIGNEE_NAME:
+    weight: 0.10
+    normalizer: company_name
+    match_strategy: fuzzy
+    fuzzy_threshold: 0.85
+    min_confidence_to_include: 0.60
+  VALUE_RANGE:
+    weight: 0.15
+    normalizer: currency_convert
+    match_strategy: range_overlap
+    tolerance_pct: 0.15
+    min_confidence_to_include: 0.65
+  HS_CODE:
+    weight: 0.10
+    normalizer: strip_dots
+    match_strategy: prefix_match
+    min_confidence_to_include: 0.85
+  ETA:
+    weight: 0.05
+    normalizer: date_normalize
+    match_strategy: range_overlap
+    tolerance_days: 7
+    min_confidence_to_include: 0.60
+
+identity_strength:
+  DEFINITIVE:
+    min_score: 0.85
+    min_strong_signals: 3
+  STRONG:
+    min_score: 0.70
+    min_strong_signals: 2
+  MODERATE:
+    min_score: 0.45
+    min_strong_signals: 1
+  WEAK:
+    min_score: 0.0
+
+confidence_tiers:
+  AUTO_ATTACH:
+    min_normalized: 0.98
+    requires_user_action: false
+  SUGGEST:
+    min_normalized: 0.90
+    requires_user_action: false
+    default_accepted: true
+  MANUAL_REVIEW:
+    min_normalized: 0.70
+    requires_user_action: true
+  NEW_SHIPMENT:
+    max_normalized: 0.699
+    requires_user_action: true

@@ -67,6 +67,12 @@ export class ComputeStack extends cdk.Stack {
           COGNITO_USER_POOL_ID: props.userPoolId,
           COGNITO_CLIENT_ID: props.userPoolClientId,
           AWS_REGION_CORE: this.region,
+          // v2 Lambda function names — API calls these for dry run + commit
+          DRY_RUN_ANALYZE_FUNCTION_NAME:    "nextrade-dry-run-analyze",
+          SESSION_COMMIT_FUNCTION_NAME:     "nextrade-session-commit",
+          REASONING_ENGINE_FUNCTION_NAME:   "nextrade-reasoning-engine",
+          TRIGGER_PIPELINE_FUNCTION_NAME:   "nextrade-trigger-pipeline",
+          DOCUMENTS_BUCKET_NAME:            props.documentsBucketName,
         },
         secrets: {
           DB_CREDENTIALS: ecs.Secret.fromSecretsManager(props.dbSecret),
@@ -110,5 +116,18 @@ export class ComputeStack extends cdk.Stack {
     // ComputeStack.
 
     new cdk.CfnOutput(this, "ApiUrl", { value: `https://${this.service.loadBalancer.loadBalancerDnsName}` });
+
+    // ECS task role needs permission to invoke v2 Lambdas
+    this.service.taskDefinition.taskRole.addToPrincipalPolicy(
+      new cdk.aws_iam.PolicyStatement({
+        actions: ["lambda:InvokeFunction"],
+        resources: [
+          `arn:aws:lambda:${this.region}:${this.account}:function:nextrade-dry-run-analyze`,
+          `arn:aws:lambda:${this.region}:${this.account}:function:nextrade-session-commit`,
+          `arn:aws:lambda:${this.region}:${this.account}:function:nextrade-reasoning-engine`,
+          `arn:aws:lambda:${this.region}:${this.account}:function:nextrade-trigger-pipeline`,
+        ],
+      })
+    );
   }
 }

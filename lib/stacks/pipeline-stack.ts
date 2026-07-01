@@ -219,6 +219,7 @@ export class PipelineStack extends cdk.Stack {
     // api/src/routes/documents.ts upload-url route), and starts an
     // execution per uploaded document.
     const triggerFn = new lambdaNode.NodejsFunction(this, "TriggerPipelineFn", {
+      functionName: "nextrade-trigger-pipeline",
       runtime: lambda.Runtime.NODEJS_20_X,
       timeout: cdk.Duration.seconds(30),
       entry: path.join(backendRoot, "lambda/trigger-pipeline/index.ts"),
@@ -285,6 +286,98 @@ export class PipelineStack extends cdk.Stack {
       },
       targets: [new eventsTargets.SqsQueue(triggerQueue)],
     });
+
+    // ── New v2 Lambdas ──────────────────────────────────────────────────────
+
+    const v2BaseProps = {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [props.dbSecurityGroup],
+      bundling: { externalModules: ["@aws-sdk/*"] },
+      environment: {
+        DB_SECRET_ARN: props.dbSecretArn,
+        DOCUMENTS_BUCKET_NAME: props.documentsBucket.bucketName,
+      },
+    };
+
+    const dbSecretPolicy = new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [props.dbSecretArn],
+    });
+
+    // Identity Engine — entity resolution from identity_signals
+    const identityEngineFn = new lambdaNode.NodejsFunction(this, "IdentityEngineFn", {
+      functionName: "nextrade-identity-engine",
+      entry: path.join(backendRoot, "lambda/identity-engine/index.ts"),
+      timeout: cdk.Duration.minutes(5),
+      ...v2BaseProps,
+    });
+    identityEngineFn.addToRolePolicy(dbSecretPolicy);
+
+    // Dry Run Analyze — AI analysis before commit
+    const dryRunFn = new lambdaNode.NodejsFunction(this, "DryRunAnalyzeFn", {
+      functionName: "nextrade-dry-run-analyze",
+      entry: path.join(backendRoot, "lambda/dry-run-analyze/index.ts"),
+      timeout: cdk.Duration.minutes(10),
+      ...v2BaseProps,
+    });
+    dryRunFn.addToRolePolicy(dbSecretPolicy);
+    dryRunFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["bedrock:InvokeModel"],
+      resources: ["*"],
+    }));
+    props.documentsBucket.grantRead(dryRunFn);
+
+    // Session Commit — moves files from staging to uploads, triggers pipeline
+    const sessionCommitFn = new lambdaNode.NodejsFunction(this, "SessionCommitFn", {
+      functionName: "nextrade-session-commit",
+      entry: path.join(backendRoot, "lambda/session-commit/index.ts"),
+      timeout: cdk.Duration.minutes(5),
+      ...v2BaseProps,
+      environment: {
+        ...v2BaseProps.environment,
+        TRIGGER_PIPELINE_FUNCTION_NAME: triggerFn.functionName,
+      },
+    });
+    sessionCommitFn.addToRolePolicy(dbSecretPolicy);
+    props.documentsBucket.grantReadWrite(sessionCommitFn);
+    triggerFn.grantInvoke(sessionCommitFn);
+
+    // Session Cleanup — removes expired dry-run sessions
+    const sessionCleanupFn = new lambdaNode.NodejsFunction(this, "SessionCleanupFn", {
+      functionName: "nextrade-session-cleanup",
+      entry: path.join(backendRoot, "lambda/session-cleanup/index.ts"),
+      timeout: cdk.Duration.minutes(5),
+      ...v2BaseProps,
+    });
+    sessionCleanupFn.addToRolePolicy(dbSecretPolicy);
+    props.documentsBucket.grantReadWrite(sessionCleanupFn);
+
+    // Cleanup runs every hour via EventBridge scheduled rule
+    new events.Rule(this, "SessionCleanupSchedule", {
+      ruleName: "nextrade-session-cleanup-hourly",
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      targets: [new eventsTargets.LambdaFunction(sessionCleanupFn)],
+    });
+
+    // Reasoning Engine — impact analysis after document changes to protected shipments
+    const reasoningFn = new lambdaNode.NodejsFunction(this, "ReasoningEngineFn", {
+      functionName: "nextrade-reasoning-engine",
+      entry: path.join(backendRoot, "lambda/reasoning-engine/index.ts"),
+      timeout: cdk.Duration.minutes(5),
+      ...v2BaseProps,
+    });
+    reasoningFn.addToRolePolicy(dbSecretPolicy);
+    reasoningFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["bedrock:InvokeModel"],
+      resources: ["*"],
+    }));
+
+    // Pass new function names to compute stack via outputs (API needs them)
+    new cdk.CfnOutput(this, "DryRunAnalyzeFunctionName",  { value: dryRunFn.functionName });
+    new cdk.CfnOutput(this, "SessionCommitFunctionName",  { value: sessionCommitFn.functionName });
+    new cdk.CfnOutput(this, "ReasoningEngineFunctionName",{ value: reasoningFn.functionName });
 
     new cdk.CfnOutput(this, "StateMachineArn", { value: this.stateMachine.stateMachineArn });
   }

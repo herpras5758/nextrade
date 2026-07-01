@@ -459,3 +459,62 @@ Backend untuk full menu UI:
 - S3Client sekarang pakai requestChecksumCalculation: WHEN_REQUIRED
   untuk disable checksum default AWS SDK v3 yang menjadi penyebab 403
   awal (CRC32 ditambahkan otomatis).
+
+## v34 - 2026-07-01 — Step 1: Evidence Domain (Event Sourcing Foundation)
+Keputusan arsitektur terbesar dalam proyek:
+evidence_events adalah source of truth. Semua tabel lain adalah projections.
+
+Yang ditambahkan:
+- db/schema-v2.sql: 489 baris, schema lengkap dengan event sourcing
+  - evidence_events (append-only, immutable, source of truth)
+  - projection tables: documents, ctdm_fields, identity_signals,
+    identities, identity_links, upload_sessions, reasoning_results
+  - projection_checkpoints: track mana event yang sudah diproses projector
+  - document_categories: seeded dari YAML, lock_policy per category
+  - State machine baru: DRAFT|UNDER_REVIEW|READY_FOR_CEISA|SUBMITTED|SPPB|CLOSED
+  - Data reset: DROP SCHEMA, bukan migration incremental (prototype)
+
+- lambda/shared/evidence/types.ts: semua type definitions Evidence Domain
+  - EvidenceEventInput, EvidenceEvent, IdentitySignalInput
+  - EvidenceProducer interface (semua sumber data harus implement ini)
+  - EventType: 23 event types, SignalType: 14 types
+
+- lambda/shared/evidence/writer.ts: EvidenceWriter class
+  - writeEvent(), writeBatch(), writeSignal(), supersede()
+  - advanceCheckpoint() untuk projection tracking
+  - Enforces event-first rule: projections never written without event
+
+- lambda/shared/evidence/producers/OcrProducer.ts:
+  - OcrProducer: CTDM fields → FIELD_EXTRACTED + SIGNAL_PRODUCED events
+  - UserOverrideProducer: corrections → FIELD_CORRECTED + SIGNAL_SUPERSEDED
+
+- config/signal-weights.yaml: confidence thresholds, normalizer config
+- config/ctdm-to-signal-mapping.yaml: field key → signal type mapping
+- lambda/apply-schema-v2/: Lambda untuk apply schema-v2
+- lambda/seed-data-v2/: Lambda untuk seed tenant + Cognito user
+
+Tidak ada yang diubah dari v1 yang sedang berjalan.
+v34 adalah additive — Step 1 dari 5 langkah implementasi yang disepakati.
+
+## v35 - 2026-07-01 — Steps 2-5: Identity, Shipment, Upload, API
+Step 2 — Identity Domain:
+- lambda/shared/identity/normalizers.ts: 8 normalizers (strip_prefix, company_name, iso6346, dll.)
+- lambda/shared/identity/confidenceEngine.ts: signal comparison, weighted scoring, reasoning
+- lambda/identity-engine/index.ts: entity resolution, clustering, identity strength
+
+Step 3 — Shipment Domain:
+- lambda/shared/identity/shipmentMatcher.ts: uses Identity Graph, enforces state machine
+- lambda/shipment-health/index.ts: HEALTHY|NEEDS_ATTENTION|CRITICAL calculator
+
+Step 4 — Upload Domain:
+- lambda/dry-run-analyze/index.ts: classify + match + duplicate check, produces preview summary
+- lambda/session-commit/index.ts: S3 copy staging→uploads, insert documents, trigger pipeline
+- lambda/session-cleanup/index.ts: EventBridge scheduled, cleanup expired sessions
+
+Step 5 — API:
+- api/src/routes/uploadSession.ts: 7 endpoints (create, stage-file, analyze, preview, override, commit, cancel)
+- api/src/server.ts: register uploadSessionRoutes
+
+Config:
+- config/signal-weights.yaml: confidence tiers, signal weights, identity strength thresholds
+- config/ctdm-to-signal-mapping.yaml: CTDM field → signal type mapping

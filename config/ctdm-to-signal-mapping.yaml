@@ -1,0 +1,20 @@
+# Maps CTDM field keys → identity signal types
+# This is the config-driven version of what OcrProducer hardcodes.
+# In future: OcrProducer reads this file. Changing a mapping = no code change.
+
+mappings:
+  po_number:        PO_NUMBER
+  bl_number:        BL_NUMBER
+  invoice_number:   INVOICE_NUMBER
+  container_number: CONTAINER_NUMBER
+  hawb:             HAWB
+  lc_number:        LC_NUMBER
+  vessel_name:      VESSEL_NAME
+  shipper_name:     SUPPLIER_NAME
+  exporter_name:    SUPPLIER_NAME
+  supplier_name:    SUPPLIER_NAME
+  consignee_name:   CONSIGNEE_NAME
+  importer_name:    CONSIGNEE_NAME
+  eta:              ETA
+  total_value:      VALUE_RANGE
+  hs_code:          HS_CODE
