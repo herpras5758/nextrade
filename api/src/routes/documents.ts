@@ -43,8 +43,16 @@ export async function documentRoutes(app: FastifyInstance) {
         ]
       );
 
-      const command = new PutObjectCommand({ Bucket: DOCUMENTS_BUCKET, Key: key, ContentType: contentType });
-      const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
+      const command = new PutObjectCommand({
+        Bucket: DOCUMENTS_BUCKET,
+        Key: key,
+        ContentType: contentType,
+        ChecksumAlgorithm: undefined, // disable CRC32 checksum — newer AWS SDK adds it by default but browser fetch cannot compute and send a matching x-amz-checksum-crc32 header, causing S3 to return 403
+      });
+      const uploadUrl = await getSignedUrl(s3, command, {
+        expiresIn: 300,
+        unhoistableHeaders: new Set(["x-amz-checksum-crc32", "x-amz-sdk-checksum-algorithm"]),
+      });
 
       return { uploadUrl, s3Key: key, documentId: rows[0].id };
     });

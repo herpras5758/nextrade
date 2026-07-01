@@ -424,3 +424,10 @@ Backend untuk full menu UI:
   langsung (http://NexTra-ApiSe-...) ke domain CloudFront
   (https://d2c77tq2zhl72p.cloudfront.net) -- apiClient sudah otomatis
   tambah /api/v1, jangan duplikat di env var.
+
+## v30 - 2026-07-01
+- FIX: S3 presigned URL PUT selalu 403 karena AWS SDK v3 terbaru
+  otomatis menambahkan x-amz-checksum-crc32 ke URL yang di-sign, tapi
+  browser fetch tidak bisa menghitung dan mengirim checksum yang cocok
+  -> S3 reject 403. Fix: disable checksum algorithm di PutObjectCommand
+  dan unhoist header checksum dari presigned URL.
