@@ -31,7 +31,7 @@ async function loadConfig(client: any, tenantId: string) {
 
   return {
     aiCfg: aiCfg ?? {
-      extraction_model_id: 'apac.anthropic.claude-sonnet-4-20250514-v1:0',
+      extraction_model_id: 'global.anthropic.claude-sonnet-4-6',
       extraction_max_tokens: 4096,
       extraction_approach: 'bedrock_vision',
       threshold_auto_approved: 0.85,
@@ -119,7 +119,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
 
     // 2. Load all config from DB — Rule #4, no hardcode
     const { aiCfg, docTypes, fieldsByDocType } = await loadConfig(client, tenantId);
-    const extractionModel = aiCfg.extraction_model_id ?? 'apac.anthropic.claude-sonnet-4-20250514-v1:0';
+    const extractionModel = aiCfg.extraction_model_id ?? 'global.anthropic.claude-sonnet-4-6';
     const maxTokens = aiCfg.extraction_max_tokens ?? 4096;
     const thresholdAuto = aiCfg.threshold_auto_approved ?? 0.85;
     const thresholdRecommended = aiCfg.threshold_recommended ?? 0.70;
