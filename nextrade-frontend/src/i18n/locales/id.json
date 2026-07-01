@@ -1,0 +1,153 @@
+{
+  "nav": {
+    "operations": "Operasional",
+    "intelligence": "Intelijen",
+    "enterprise": "Enterprise",
+    "dashboard": "Dashboard",
+    "upload": "Upload",
+    "documents": "Pemrosesan Dokumen",
+    "bc23": "Alur Kerja BC 2.3",
+    "tradeIntelligence": "Intelijen Perdagangan",
+    "compliance": "Intelijen Kepatuhan",
+    "erp": "Integrasi ERP",
+    "itInventory": "IT Inventory BC",
+    "analytics": "Analitik & Laporan",
+    "reviewQueue": "Antrian Tinjauan",
+    "evidenceRegistry": "Registri Bukti",
+    "ceisaMapping": "Pemetaan CEISA",
+    "emailIntake": "Intake Email",
+    "auditTrail": "Jejak Audit",
+    "settings": "Pengaturan"
+  },
+  "common": {
+    "search": "Cari",
+    "notifications": "Notifikasi",
+    "settings": "Pengaturan",
+    "logout": "Keluar",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "submit": "Kirim",
+    "upload": "Unggah",
+    "review": "Tinjau",
+    "approve": "Setujui",
+    "reject": "Tolak",
+    "loading": "Memuat...",
+    "noData": "Belum ada data",
+    "aiRecommendation": "Rekomendasi AI",
+    "confidence": "Skor Keyakinan",
+    "switchBusinessUnit": "Ganti Unit Bisnis",
+    "back": "Kembali",
+    "add": "Tambah"
+  },
+  "dashboard": {
+    "title": "Dashboard Eksekutif",
+    "subtitle": "Ringkasan operasional, kepatuhan, dan risiko perdagangan",
+    "emptyState": "Belum ada aktivitas. Mulai dengan mengunggah dokumen pertama Anda.",
+    "sourceBreakdown": "Sumber Dokumen",
+    "kpi": {
+      "activeShipments": "Shipment Aktif",
+      "pendingReview": "Menunggu Tinjauan",
+      "readyForCeisa": "Siap Submit CEISA",
+      "autoApprovalRate": "Tingkat Persetujuan Otomatis"
+    }
+  },
+  "documents": {
+    "title": "Pemrosesan Dokumen",
+    "dropzone": "Seret dokumen ke sini atau klik untuk unggah",
+    "supportedTypes": "Mendukung: Invoice, Packing List, PO, Bill of Lading, Surat Jalan",
+    "extracting": "Mengekstrak data...",
+    "classifying": "Mengklasifikasi dokumen...",
+    "extractedFields": "Field yang Diekstrak",
+    "source": "Sumber"
+  },
+  "platform": {
+    "motto": "Dari Dokumen ke Pengetahuan. Dari Pengetahuan ke Intelijen. Dari Intelijen ke Otomasi."
+  },
+  "ceisa": {
+    "readinessSummary": "Ringkasan Kesiapan CEISA"
+  },
+  "review": {
+    "detailedReview": "Tinjauan Detail",
+    "conflictIssue": "Ditemukan {{count}} nilai berbeda dari beberapa dokumen",
+    "value": "Nilai",
+    "reasoning": "Alasan",
+    "skip": "Lewati",
+    "useRecommended": "Gunakan Rekomendasi"
+  },
+  "validation": {
+    "title": "Validation Error",
+    "count": "{{count}} ketidakcocokan antar dokumen ditemukan",
+    "mismatch": "{{expected}} vs {{actual}}",
+    "conflictsWith": "bertentangan dengan",
+    "markResolved": "Tandai Selesai"
+  },
+  "shipments": {
+    "number": "Shipment",
+    "bcType": "Tipe BC",
+    "from": "Dari",
+    "to": "Ke",
+    "readiness": "Kesiapan",
+    "selectPrompt": "Pilih shipment untuk lihat detail"
+  },
+  "evidence": {
+    "fields": "Field Terselesaikan & Sumber",
+    "auditTrail": "Jejak Audit"
+  },
+  "ceisaMapping": {
+    "blocked": "Belum siap untuk CEISA",
+    "status": "Status saat ini",
+    "openMismatches": "Ketidakcocokan terbuka",
+    "needingReview": "Field perlu ditinjau",
+    "payloadReady": "Payload BC 2.3"
+  },
+  "emailIntake": {
+    "subtitle": "Forward otomatis email dari supplier/forwarder ke pipeline dokumen.",
+    "intakeAddress": "Alamat Intake",
+    "notConfigured": "Belum dikonfigurasi",
+    "allowedSenders": "Sender yang Diizinkan",
+    "addSenderPlaceholder": "email@supplier.com atau @domain.com",
+    "adminOnly": "Hanya admin yang bisa mengubah daftar ini.",
+    "recentActivity": "Aktivitas Terbaru",
+    "sender": "Pengirim",
+    "subject": "Subjek",
+    "attachments": "Lampiran",
+    "received": "Diterima"
+  },
+  "erp": {
+    "subtitle": "Pemetaan field config-driven - contoh ditampilkan untuk SAP. Koneksi nyata butuh kredensial tenant.",
+    "notConnected": "Belum terhubung",
+    "ctdmField": "Field CTDM",
+    "erpField": "Field ERP",
+    "direction": "Arah"
+  },
+  "auditTrail": {
+    "subtitle": "Semua aksi yang mengubah data di tenant ini, append-only.",
+    "action": "Aksi",
+    "entityType": "Entitas",
+    "entityId": "ID Entitas",
+    "timestamp": "Waktu"
+  },
+  "compliance": {
+    "subtitle": "Pelanggaran aturan bisnis di semua shipment.",
+    "field": "Field",
+    "issue": "Masalah",
+    "detected": "Terdeteksi",
+    "empty": "Tidak ada masalah kepatuhan ditemukan."
+  },
+  "reviewQueue": {
+    "type": "Tipe",
+    "shipment": "Shipment",
+    "field": "Field",
+    "value": "Nilai",
+    "detected": "Terdeteksi",
+    "subtitle": "Semua yang butuh keputusan manusia lintas shipment, paling mendesak duluan.",
+    "empty": "Tidak ada yang perlu ditinjau saat ini."
+  },
+  "auth": {
+    "login": "Masuk",
+    "password": "Kata Sandi",
+    "setNewPassword": "Buat Kata Sandi Baru",
+    "firstLoginNote": "Ini login pertama Anda - buat kata sandi permanen.",
+    "newPassword": "Kata Sandi Baru"
+  }
+}

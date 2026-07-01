@@ -1,12 +1,21 @@
 name: Deploy NexTrade Backend
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'lambda/**'
+      - 'lib/**'
+      - 'bin/**'
+      - 'Dockerfile'
+      - 'package.json'
   workflow_dispatch:
     inputs:
       stack:
         description: "Stack to deploy"
         required: true
-        default: "NexTrade-Network"
+        default: "NexTrade-Compute"
         type: choice
         options:
           - NexTrade-Network
@@ -43,8 +52,8 @@ jobs:
       - run: npm install
 
       - name: cdk diff
-        run: npx aws-cdk diff ${{ github.event.inputs.stack }}
+        run: npx aws-cdk diff ${{ github.event.inputs.stack || 'NexTrade-Compute' }}
         continue-on-error: true
 
       - name: cdk deploy
-        run: npx aws-cdk deploy ${{ github.event.inputs.stack }} --require-approval never --exclusively
+        run: npx aws-cdk deploy ${{ github.event.inputs.stack || 'NexTrade-Compute' }} --require-approval never --exclusively

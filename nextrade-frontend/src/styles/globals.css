@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { font-family: theme("fontFamily.sans"); -webkit-font-smoothing: antialiased; }
+  body { @apply bg-surface-page text-surface-text; }
+
+  /* RTL readiness — Addendum D, PROJECT_RULES.md */
+  [dir="rtl"] .ltr-only-icon { transform: scaleX(-1); }
+
+  /* Focus ring — accessibility floor */
+  :focus-visible { outline: 2px solid theme("colors.intel.500"); outline-offset: 2px; }
+
+  /* Scrollbar — subtle enterprise style */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: theme("colors.surface.border"); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: theme("colors.surface.muted"); }
+
+  /* Page heading hierarchy */
+  .page-title { @apply text-lg font-semibold text-surface-text tracking-tight; }
+  .page-subtitle { @apply text-sm text-surface-muted mt-0.5; }
+  .section-title { @apply text-sm font-semibold text-surface-text; }
+
+  /* Data identifiers — doc numbers, BC codes, container numbers */
+  .data-id { @apply font-mono text-xs tracking-tight text-surface-text; }
+}
+
+@layer components {
+  /* AI-touched indicator — teal badge, used exclusively for AI output */
+  .ai-badge {
+    @apply inline-flex items-center gap-1 rounded-full bg-intel-50 px-2 py-0.5 text-2xs font-medium text-intel-500 ring-1 ring-inset ring-intel-100;
+  }
+
+  /* Enterprise status badges */
+  .badge { @apply inline-flex items-center rounded px-2 py-0.5 text-2xs font-medium; }
+  .badge-success { @apply badge bg-success-100 text-success-600; }
+  .badge-warning { @apply badge bg-warning-100 text-warning-600; }
+  .badge-danger { @apply badge bg-danger-100 text-danger-600; }
+  .badge-neutral { @apply badge bg-surface-page text-surface-muted; }
+  .badge-intel { @apply badge bg-intel-50 text-intel-500; }
+
+  /* Card — standard raised card */
+  .card {
+    @apply rounded-md border border-surface-border bg-white shadow-card;
+  }
+  .card-header {
+    @apply flex items-center justify-between border-b border-surface-border px-4 py-3;
+  }
+  .card-body {
+    @apply p-4;
+  }
+
+  /* Page layout wrapper */
+  .page-container {
+    @apply mx-auto max-w-6xl;
+  }
+
+  /* Enterprise button variants */
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 rounded-md bg-intel-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-intel-400 transition-colors;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-surface-border bg-white px-3 py-1.5 text-xs font-medium text-surface-text hover:bg-surface-page transition-colors;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-danger-600 px-3 py-1.5 text-xs font-medium text-danger-600 hover:bg-danger-100 transition-colors;
+  }
+
+  /* Form inputs */
+  .input {
+    @apply w-full rounded-md border border-surface-border bg-white px-3 py-1.5 text-sm text-surface-text outline-none transition-colors placeholder:text-surface-muted focus:border-intel-500 focus:ring-1 focus:ring-intel-500;
+  }
+  .input-label {
+    @apply block text-xs font-medium text-surface-text mb-1;
+  }
+
+  /* KPI stat card — Salesforce Lightning style */
+  .kpi-card {
+    @apply rounded-md border border-surface-border bg-white p-4 shadow-card;
+  }
+  .kpi-label {
+    @apply text-2xs font-semibold uppercase tracking-wider text-surface-muted;
+  }
+  .kpi-value {
+    @apply mt-1.5 font-mono text-2xl font-semibold text-surface-text;
+  }
+  .kpi-delta {
+    @apply mt-1 flex items-center gap-1 text-2xs;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

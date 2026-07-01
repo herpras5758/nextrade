@@ -1,0 +1,153 @@
+{
+  "nav": {
+    "operations": "Operations",
+    "intelligence": "Intelligence",
+    "enterprise": "Enterprise",
+    "dashboard": "Dashboard",
+    "upload": "Upload",
+    "documents": "Document Processing",
+    "bc23": "BC 2.3 Workflow",
+    "tradeIntelligence": "Trade Intelligence",
+    "compliance": "Compliance Intelligence",
+    "erp": "ERP Integration",
+    "itInventory": "IT Inventory BC",
+    "analytics": "Analytics & Reporting",
+    "reviewQueue": "Review Queue",
+    "evidenceRegistry": "Evidence Registry",
+    "ceisaMapping": "CEISA Mapping",
+    "emailIntake": "Email Intake",
+    "auditTrail": "Audit Trail",
+    "settings": "Settings"
+  },
+  "common": {
+    "search": "Search",
+    "notifications": "Notifications",
+    "settings": "Settings",
+    "logout": "Log out",
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "upload": "Upload",
+    "review": "Review",
+    "approve": "Approve",
+    "reject": "Reject",
+    "loading": "Loading...",
+    "noData": "No data yet",
+    "aiRecommendation": "AI Recommendation",
+    "confidence": "Confidence Score",
+    "switchBusinessUnit": "Switch Business Unit",
+    "back": "Back",
+    "add": "Add"
+  },
+  "dashboard": {
+    "title": "Executive Dashboard",
+    "subtitle": "Operational, compliance, and trade risk overview",
+    "emptyState": "No activity yet. Start by uploading your first document.",
+    "sourceBreakdown": "Document Source",
+    "kpi": {
+      "activeShipments": "Active Shipments",
+      "pendingReview": "Pending Review",
+      "readyForCeisa": "Ready for CEISA Submission",
+      "autoApprovalRate": "Auto-Approval Rate"
+    }
+  },
+  "documents": {
+    "title": "Document Processing",
+    "dropzone": "Drag documents here or click to upload",
+    "supportedTypes": "Supports: Invoice, Packing List, PO, Bill of Lading, Surat Jalan",
+    "extracting": "Extracting data...",
+    "classifying": "Classifying document...",
+    "extractedFields": "Extracted Fields",
+    "source": "Source"
+  },
+  "platform": {
+    "motto": "From Documents to Knowledge. From Knowledge to Intelligence. From Intelligence to Automation."
+  },
+  "ceisa": {
+    "readinessSummary": "CEISA Readiness Summary"
+  },
+  "review": {
+    "detailedReview": "Detailed Review",
+    "conflictIssue": "Found {{count}} different values across documents",
+    "value": "Value",
+    "reasoning": "Reasoning",
+    "skip": "Skip",
+    "useRecommended": "Use Recommended"
+  },
+  "validation": {
+    "title": "Validation Error",
+    "count": "{{count}} cross-document mismatch found",
+    "mismatch": "{{expected}} vs {{actual}}",
+    "conflictsWith": "conflicts with",
+    "markResolved": "Mark Resolved"
+  },
+  "shipments": {
+    "number": "Shipment",
+    "bcType": "BC Type",
+    "from": "From",
+    "to": "To",
+    "readiness": "Readiness",
+    "selectPrompt": "Select a shipment to view detail"
+  },
+  "evidence": {
+    "fields": "Resolved Fields & Sources",
+    "auditTrail": "Audit Trail"
+  },
+  "ceisaMapping": {
+    "blocked": "Not ready for CEISA",
+    "status": "Current status",
+    "openMismatches": "Open mismatches",
+    "needingReview": "Fields needing review",
+    "payloadReady": "BC 2.3 Payload"
+  },
+  "emailIntake": {
+    "subtitle": "Auto-forward emails from suppliers/forwarders into the document pipeline.",
+    "intakeAddress": "Intake Address",
+    "notConfigured": "Not configured yet",
+    "allowedSenders": "Allowed Senders",
+    "addSenderPlaceholder": "email@supplier.com or @domain.com",
+    "adminOnly": "Only admins can edit this list.",
+    "recentActivity": "Recent Activity",
+    "sender": "Sender",
+    "subject": "Subject",
+    "attachments": "Attachments",
+    "received": "Received"
+  },
+  "erp": {
+    "subtitle": "Config-driven field mapping - example shown for SAP. Live connection requires tenant credentials.",
+    "notConnected": "Not connected",
+    "ctdmField": "CTDM Field",
+    "erpField": "ERP Field",
+    "direction": "Direction"
+  },
+  "auditTrail": {
+    "subtitle": "Every mutating action across this tenant, append-only.",
+    "action": "Action",
+    "entityType": "Entity",
+    "entityId": "Entity ID",
+    "timestamp": "Timestamp"
+  },
+  "compliance": {
+    "subtitle": "Business rule validation failures across all shipments.",
+    "field": "Field",
+    "issue": "Issue",
+    "detected": "Detected",
+    "empty": "No compliance issues found."
+  },
+  "reviewQueue": {
+    "type": "Type",
+    "shipment": "Shipment",
+    "field": "Field",
+    "value": "Value",
+    "detected": "Detected",
+    "subtitle": "Everything across all shipments that needs a human decision, most urgent first.",
+    "empty": "Nothing needs review right now."
+  },
+  "auth": {
+    "login": "Log in",
+    "password": "Password",
+    "setNewPassword": "Set New Password",
+    "firstLoginNote": "This is your first login - set a permanent password.",
+    "newPassword": "New Password"
+  }
+}
