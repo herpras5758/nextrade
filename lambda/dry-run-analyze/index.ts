@@ -110,12 +110,6 @@ export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userI
       details: results,
     };
 
-    await client.query(
-      `UPDATE upload_sessions SET status = 'PREVIEWED', summary = $1, last_event_id = $2
-       WHERE id = $3`,
-      [JSON.stringify(summary), '', sessionId]  // event id filled below
-    );
-
     const evt = await writer.writeEvent({
       tenantId, eventTime: new Date(), eventType: 'UPLOAD_SESSION_ANALYZED',
       producerType: 'DRY_RUN_ENGINE', producerRef: sessionId,
@@ -124,8 +118,9 @@ export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userI
     });
 
     await client.query(
-      `UPDATE upload_sessions SET last_event_id = $1 WHERE id = $2`,
-      [evt.id, sessionId]
+      `UPDATE upload_sessions SET status = 'PREVIEWED', summary = $1, last_event_id = $2
+       WHERE id = $3`,
+      [JSON.stringify(summary), evt.id, sessionId]
     );
 
     await client.query('COMMIT');
