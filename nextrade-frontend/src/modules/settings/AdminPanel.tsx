@@ -157,7 +157,26 @@ function AiSection({ tenantId }: { tenantId: string }) {
       <SectionCard title="Bedrock AI Model" description="Model yang digunakan untuk klasifikasi dan ekstraksi dokumen">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="input-label">Model ID</label>
+            <label className="input-label">AI Provider</label>
+          <select value={cfg.ai_provider ?? 'openai'}
+            onChange={e => setCfg((p:any) => ({ ...p, ai_provider: e.target.value }))}
+            className="input text-xs mb-3">
+            <option value="openai">OpenAI (GPT-4o Vision)</option>
+            <option value="bedrock">AWS Bedrock (Claude/Nova)</option>
+          </select>
+
+          {(!cfg.ai_provider || cfg.ai_provider === 'openai') && (
+            <div className="mb-3">
+              <label className="input-label">OpenAI API Key</label>
+              <input type="password" value={cfg.openai_api_key ?? ''}
+                onChange={e => setCfg((p:any) => ({ ...p, openai_api_key: e.target.value }))}
+                className="input text-xs font-mono"
+                placeholder="sk-..." />
+              <p className="text-[11px] text-[#6B778C] mt-1">Disimpan terenkripsi di database</p>
+            </div>
+          )}
+
+          <label className="input-label">Model ID</label>
             <select className="input text-xs" value={cfg.bedrock_model_id}
               onChange={e => { setCfg({ ...cfg, bedrock_model_id: e.target.value }); setSaved(false); }}>
               <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (Recommended)</option>
