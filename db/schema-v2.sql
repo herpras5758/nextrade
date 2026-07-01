@@ -515,6 +515,40 @@ CREATE TABLE tenant_ai_config (
 );
 
 -- Signal weights per tenant (override dari signal-weights.yaml)
+-- Doc type configuration per tenant (Rule #4 — config-driven, Sprint 4)
+CREATE TABLE tenant_doc_type_config (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id                UUID REFERENCES tenants(id),
+  doc_type_code            VARCHAR(30) NOT NULL,   -- COMMERCIAL_INVOICE, BC_2_3, dll
+  display_name             VARCHAR(100),
+  is_enabled               BOOLEAN DEFAULT true,
+  category                 VARCHAR(20),             -- COMMERCIAL/TRANSPORT/CUSTOMS/SUPPORTING
+  classification_hints     TEXT[],                  -- keyword AI pakai untuk detect tipe
+  extraction_prompt_override TEXT,                  -- NULL = auto-generate dari field list
+  created_at               TIMESTAMPTZ DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tenant_id, doc_type_code)
+);
+
+-- Field configuration per doc type per tenant (Sprint 4)
+CREATE TABLE tenant_doc_field_config (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id             UUID REFERENCES tenants(id),
+  doc_type_code         VARCHAR(30) NOT NULL,
+  field_key             VARCHAR(60) NOT NULL,
+  display_name          VARCHAR(100),               -- label UI Bahasa Indonesia
+  is_enabled            BOOLEAN DEFAULT true,
+  is_mandatory          BOOLEAN DEFAULT false,       -- mandatory untuk ekstraksi
+  is_mandatory_ceisa    BOOLEAN DEFAULT false,       -- mandatory untuk submit CEISA
+  ceisa_field_ref       VARCHAR(20),                -- e.g. "field_16", "field_20"
+  confidence_threshold  DECIMAL(4,3),               -- NULL = pakai tenant default
+  validation_regex      TEXT,                        -- optional format validation
+  sort_order            INT DEFAULT 0,
+  created_at            TIMESTAMPTZ DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tenant_id, doc_type_code, field_key)
+);
+
 CREATE TABLE tenant_signal_weights (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id   UUID REFERENCES tenants(id),
@@ -610,6 +644,8 @@ CREATE TABLE learning_correction_reviews (
 -- Update projection_checkpoints for new tables
 INSERT INTO projection_checkpoints (projection_name) VALUES
   ('tenant_ai_config'),
+  ('tenant_doc_type_config'),
+  ('tenant_doc_field_config'),
   ('tenant_signal_weights'),
   ('tenant_validation_rules')
 ON CONFLICT (projection_name) DO NOTHING;

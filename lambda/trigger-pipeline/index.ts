@@ -8,215 +8,85 @@ const s3 = new S3Client({ region: process.env.AWS_REGION });
 const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
 const BUCKET = process.env.DOCUMENTS_BUCKET_NAME!;
 
-interface PipelineEvent {
-  documentId: string;
-  tenantId: string;
+interface PipelineEvent { documentId: string; tenantId: string; }
+
+// ── Load config from DB ────────────────────────────────────────────────────────
+async function loadConfig(client: any, tenantId: string) {
+  const { rows: [aiCfg] } = await client.query(
+    `SELECT * FROM tenant_ai_config WHERE tenant_id = $1`, [tenantId]
+  );
+  const { rows: docTypes } = await client.query(
+    `SELECT * FROM tenant_doc_type_config WHERE tenant_id = $1 AND is_enabled = true`, [tenantId]
+  );
+  const { rows: fields } = await client.query(
+    `SELECT * FROM tenant_doc_field_config WHERE tenant_id = $1 AND is_enabled = true ORDER BY sort_order`, [tenantId]
+  );
+
+  // Group fields by doc_type_code
+  const fieldsByDocType: Record<string, any[]> = {};
+  for (const f of fields) {
+    if (!fieldsByDocType[f.doc_type_code]) fieldsByDocType[f.doc_type_code] = [];
+    fieldsByDocType[f.doc_type_code].push(f);
+  }
+
+  return {
+    aiCfg: aiCfg ?? {
+      extraction_model_id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      extraction_max_tokens: 4096,
+      extraction_approach: 'bedrock_vision',
+      threshold_auto_approved: 0.85,
+      threshold_recommended: 0.70,
+    },
+    docTypes,
+    fieldsByDocType,
+  };
 }
 
-// ── Document type detection prompts ───────────────────────────────────────────
-const CLASSIFICATION_PROMPT = `Kamu adalah sistem klasifikasi dokumen trade/customs Indonesia.
-Klasifikasikan dokumen ini ke salah satu kategori berikut:
-COMMERCIAL_INVOICE, PACKING_LIST, BILL_OF_LADING, PURCHASE_ORDER, BC_2_3, BC_1_1, 
-INWARD_MANIFEST, LETTER_OF_GUARANTEE, COO, UNKNOWN
+// ── Build extraction prompt from field config ─────────────────────────────────
+function buildExtractionPrompt(docTypeCode: string, fields: any[]): string {
+  const fieldList = fields
+    .filter(f => f.is_enabled)
+    .map(f => `  "${f.field_key}": ""  // ${f.display_name}${f.is_mandatory_ceisa ? ' [WAJIB CEISA]' : ''}${f.ceisa_field_ref ? ` (BC ref: ${f.ceisa_field_ref})` : ''}`)
+    .join(',\n');
+
+  const mandatoryList = fields.filter(f => f.is_mandatory_ceisa).map(f => f.field_key).join(', ');
+
+  return `Kamu adalah sistem ekstraksi data dokumen trade Indonesia.
+Ekstrak field berikut dari dokumen ${docTypeCode}.
+Field dengan [WAJIB CEISA] HARUS diisi — sangat penting untuk kepatuhan bea cukai.
+Field mandatory CEISA: ${mandatoryList}
+
+Untuk setiap field yang diekstrak, tambahkan confidence score (0.0-1.0) di objek "_confidence".
+Jawab HANYA dengan format JSON valid, tanpa teks lain:
+
+{
+${fieldList},
+  "_confidence": {
+${fields.map(f => `    "${f.field_key}": 0.0`).join(',\n')}
+  }
+}
+
+Jika field tidak ditemukan atau tidak jelas, isi dengan string kosong "" dan confidence 0.0.
+Untuk array (items, hs_codes, container_numbers), kembalikan sebagai JSON array.`;
+}
+
+// ── Build classification prompt from doc type hints ───────────────────────────
+function buildClassificationPrompt(docTypes: any[]): string {
+  const hints = docTypes.map(dt =>
+    `- ${dt.doc_type_code}: ${(dt.classification_hints ?? []).join(', ')}`
+  ).join('\n');
+
+  return `Kamu adalah sistem klasifikasi dokumen trade/customs Indonesia.
+Klasifikasikan dokumen ini ke salah satu kategori berikut berdasarkan isi dokumen:
+
+${hints}
+- UNKNOWN: tidak termasuk kategori di atas
 
 Jawab HANYA dengan format JSON:
-{"type": "COMMERCIAL_INVOICE", "confidence": 0.97, "language": "en"}`;
+{"type": "COMMERCIAL_INVOICE", "confidence": 0.97, "language": "id"}`;
+}
 
-const EXTRACTION_PROMPTS: Record<string, string> = {
-  COMMERCIAL_INVOICE: `Ekstrak field berikut dari Commercial Invoice ini. Jawab HANYA JSON:
-{
-  "invoice_number": "",
-  "invoice_date": "",
-  "supplier_name": "",
-  "supplier_address": "",
-  "supplier_country": "",
-  "consignee_name": "",
-  "consignee_address": "",
-  "consignee_npwp": "",
-  "po_number": "",
-  "payment_terms": "",
-  "incoterm": "",
-  "currency": "",
-  "total_fob": "",
-  "items": [{"description":"","hs_code":"","qty":"","unit":"","unit_price":"","amount":""}],
-  "_confidence": {"invoice_number": 0.0, "total_fob": 0.0, "supplier_name": 0.0}
-}`,
-
-  PACKING_LIST: `Ekstrak field dari Packing List ini. Jawab HANYA JSON:
-{
-  "packing_list_number": "",
-  "invoice_reference": "",
-  "date": "",
-  "supplier_name": "",
-  "consignee_name": "",
-  "total_packages": "",
-  "total_gross_weight_kg": "",
-  "total_net_weight_kg": "",
-  "total_cbm": "",
-  "items": [{"description":"","hs_code":"","qty":"","packages":"","gross_weight":"","net_weight":"","dimensions":""}],
-  "_confidence": {"total_gross_weight_kg": 0.0, "total_net_weight_kg": 0.0}
-}`,
-
-  BILL_OF_LADING: `Ekstrak field dari Bill of Lading ini. Jawab HANYA JSON:
-{
-  "bl_number": "",
-  "bl_date": "",
-  "shipper_name": "",
-  "consignee_name": "",
-  "notify_party": "",
-  "vessel_name": "",
-  "voyage_number": "",
-  "port_of_loading": "",
-  "port_of_discharge": "",
-  "place_of_delivery": "",
-  "total_packages": "",
-  "gross_weight_kg": "",
-  "measurement_cbm": "",
-  "freight_terms": "",
-  "container_numbers": [],
-  "seal_numbers": [],
-  "_confidence": {"bl_number": 0.0, "vessel_name": 0.0, "gross_weight_kg": 0.0}
-}`,
-
-  PURCHASE_ORDER: `Ekstrak field dari Purchase Order ini. Jawab HANYA JSON:
-{
-  "po_number": "",
-  "po_date": "",
-  "buyer_name": "",
-  "buyer_address": "",
-  "supplier_name": "",
-  "supplier_code": "",
-  "currency": "",
-  "payment_terms": "",
-  "delivery_terms": "",
-  "incoterm": "",
-  "items": [{"item_code":"","description":"","qty":"","unit":"","unit_price":"","total":""}],
-  "grand_total": "",
-  "_confidence": {"po_number": 0.0, "grand_total": 0.0}
-}`,
-
-  BC_2_3: `Ekstrak field dari BC 2.3 (Pemberitahuan Impor Barang TPB) ini. Jawab HANYA JSON:
-{
-  "nomor_pengajuan": "",
-  "nomor_pendaftaran": "",
-  "tanggal_pendaftaran": "",
-  "kantor_pabean": "",
-  "kode_kantor_pabean": "",
-  "npwp_importir": "",
-  "nama_importir": "",
-  "alamat_importir": "",
-  "npwp_pemilik": "",
-  "nama_pemilik": "",
-  "invoice_number": "",
-  "bl_number": "",
-  "bc11_number": "",
-  "vessel_name": "",
-  "voyage_number": "",
-  "port_loading": "",
-  "port_discharge": "",
-  "currency": "",
-  "nilai_fob": "",
-  "freight": "",
-  "asuransi": "",
-  "nilai_cif_usd": "",
-  "nilai_cif_idr": "",
-  "kurs": "",
-  "total_packages": "",
-  "gross_weight_kg": "",
-  "net_weight_kg": "",
-  "hs_codes": [{"pos_tarif":"","uraian":"","kategori":"","negara_asal":"","bm_pct":"","ppn_pct":"","net_weight":"","nilai_cif":""}],
-  "bm_total": "",
-  "ppn_total": "",
-  "total_pungutan": "",
-  "_confidence": {"nomor_pendaftaran": 0.0, "nilai_cif_idr": 0.0, "npwp_importir": 0.0}
-}`,
-
-  BC_1_1: `Ekstrak field dari Inward Manifest BC 1.1 ini. Jawab HANYA JSON:
-{
-  "nomor_bc11": "",
-  "tanggal_bc11": "",
-  "kantor_pabean": "",
-  "vessel_name": "",
-  "voyage_number": "",
-  "bl_number": "",
-  "shipper_name": "",
-  "consignee_name": "",
-  "total_packages": "",
-  "gross_weight_kg": "",
-  "container_numbers": [],
-  "hs_codes": [],
-  "_confidence": {"nomor_bc11": 0.0, "bl_number": 0.0}
-}`,
-
-  INWARD_MANIFEST: `Ekstrak field dari Inward Manifest ini. Jawab HANYA JSON:
-{
-  "nomor_bc11": "",
-  "tanggal": "",
-  "kantor_pabean": "",
-  "vessel_name": "",
-  "voyage": "",
-  "bl_number": "",
-  "shipper": "",
-  "consignee": "",
-  "total_packages": "",
-  "gross_weight_kg": "",
-  "hs_codes": [],
-  "container_numbers": [],
-  "_confidence": {"nomor_bc11": 0.0, "bl_number": 0.0}
-}`,
-
-  LETTER_OF_GUARANTEE: `Ekstrak field dari Letter of Guarantee ini. Jawab HANYA JSON:
-{
-  "lg_date": "",
-  "issuer_name": "",
-  "beneficiary": "",
-  "bl_reference": "",
-  "vessel_name": "",
-  "amount": "",
-  "currency": "",
-  "_confidence": {"bl_reference": 0.0, "amount": 0.0}
-}`,
-
-  UNKNOWN: `Ekstrak informasi yang tersedia dari dokumen ini. Jawab HANYA JSON:
-{
-  "document_title": "",
-  "date": "",
-  "issuer": "",
-  "reference_numbers": [],
-  "key_values": {},
-  "_confidence": {}
-}`,
-};
-
-// ── Identity signal mapping ────────────────────────────────────────────────────
-const IDENTITY_SIGNAL_MAPPING: Record<string, { field: string; signalType: string; weight: number }[]> = {
-  COMMERCIAL_INVOICE: [
-    { field: 'invoice_number', signalType: 'INVOICE_NUMBER', weight: 0.20 },
-    { field: 'po_number',      signalType: 'PO_NUMBER',      weight: 0.35 },
-  ],
-  BILL_OF_LADING: [
-    { field: 'bl_number',          signalType: 'BL_NUMBER',         weight: 0.30 },
-    { field: 'container_numbers.0',signalType: 'CONTAINER_NUMBER',  weight: 0.25 },
-  ],
-  PURCHASE_ORDER: [
-    { field: 'po_number', signalType: 'PO_NUMBER', weight: 0.35 },
-  ],
-  BC_2_3: [
-    { field: 'invoice_number',     signalType: 'INVOICE_NUMBER', weight: 0.20 },
-    { field: 'bl_number',          signalType: 'BL_NUMBER',      weight: 0.30 },
-    { field: 'nomor_pendaftaran',  signalType: 'BC_NUMBER',      weight: 0.25 },
-  ],
-  BC_1_1: [
-    { field: 'bl_number',   signalType: 'BL_NUMBER',   weight: 0.30 },
-    { field: 'nomor_bc11',  signalType: 'BC11_NUMBER',  weight: 0.20 },
-  ],
-  INWARD_MANIFEST: [
-    { field: 'bl_number',   signalType: 'BL_NUMBER',   weight: 0.30 },
-    { field: 'nomor_bc11',  signalType: 'BC11_NUMBER',  weight: 0.20 },
-  ],
-};
-
-// ── Get nested value from object ───────────────────────────────────────────────
+// ── Get nested value ──────────────────────────────────────────────────────────
 function getNestedValue(obj: any, path: string): string | null {
   const parts = path.split('.');
   let current = obj;
@@ -225,7 +95,12 @@ function getNestedValue(obj: any, path: string): string | null {
     const idx = parseInt(part);
     current = isNaN(idx) ? current[part] : current[idx];
   }
-  return current ? String(current) : null;
+  return current != null ? String(current) : null;
+}
+
+function getDocCategory(docTypes: any[], docTypeCode: string): string {
+  const found = docTypes.find(dt => dt.doc_type_code === docTypeCode);
+  return found?.category ?? 'SUPPORTING';
 }
 
 // ── Main handler ───────────────────────────────────────────────────────────────
@@ -235,34 +110,32 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
   const client = await pool.connect();
 
   try {
-    // 1. Load document + tenant config
+    // 1. Load document
     const { rows: [doc] } = await client.query(
-      `SELECT d.*, t.config as tenant_config
-       FROM documents d JOIN tenants t ON t.id = d.tenant_id
-       WHERE d.id = $1 AND d.tenant_id = $2`,
+      `SELECT * FROM documents WHERE id = $1 AND tenant_id = $2`,
       [documentId, tenantId]
     );
     if (!doc) throw new Error(`Document ${documentId} not found`);
 
-    const tenantConfig = doc.tenant_config ?? {};
-    const extractionModel = tenantConfig.extraction_model_id
-      ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0';
-    const maxTokens = tenantConfig.extraction_max_tokens ?? 4096;
+    // 2. Load all config from DB — Rule #4, no hardcode
+    const { aiCfg, docTypes, fieldsByDocType } = await loadConfig(client, tenantId);
+    const extractionModel = aiCfg.extraction_model_id ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+    const maxTokens = aiCfg.extraction_max_tokens ?? 4096;
+    const thresholdAuto = aiCfg.threshold_auto_approved ?? 0.85;
+    const thresholdRecommended = aiCfg.threshold_recommended ?? 0.70;
 
-    // 2. Update status → extracting
-    await client.query(
-      `UPDATE documents SET status = 'extracting' WHERE id = $1`,
-      [documentId]
-    );
+    // 3. Update status → extracting
+    await client.query(`UPDATE documents SET status = 'extracting' WHERE id = $1`, [documentId]);
 
-    // 3. Download PDF from S3
-    console.log('[Pipeline] Downloading from S3:', doc.s3_key);
+    // 4. Download PDF from S3
+    console.log('[Pipeline] Downloading:', doc.s3_key);
     const s3Obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: doc.s3_key }));
     const pdfBytes = await s3Obj.Body!.transformToByteArray();
     const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
 
-    // 4. Classify document type
-    console.log('[Pipeline] Classifying document...');
+    // 5. Classify document — prompt built from DB config
+    console.log('[Pipeline] Classifying...');
+    const classifyPrompt = buildClassificationPrompt(docTypes);
     const classifyRes = await bedrock.send(new InvokeModelCommand({
       modelId: extractionModel,
       contentType: 'application/json',
@@ -273,11 +146,8 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
-            },
-            { type: 'text', text: CLASSIFICATION_PROMPT },
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+            { type: 'text', text: classifyPrompt },
           ],
         }],
       }),
@@ -293,203 +163,187 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
     }
     console.log('[Pipeline] Classification:', classification);
 
-    const docType = classification.type ?? 'UNKNOWN';
-    const extractionPrompt = EXTRACTION_PROMPTS[docType] ?? EXTRACTION_PROMPTS.UNKNOWN;
+    const docTypeCode = classification.type ?? 'UNKNOWN';
+    const docTypeFields = fieldsByDocType[docTypeCode] ?? [];
 
-    // 5. Extract fields
-    console.log('[Pipeline] Extracting fields for type:', docType);
-    const extractRes = await bedrock.send(new InvokeModelCommand({
-      modelId: extractionModel,
-      contentType: 'application/json',
-      accept: 'application/json',
-      body: JSON.stringify({
-        anthropic_version: 'bedrock-2023-05-31',
-        max_tokens: maxTokens,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
-            },
-            { type: 'text', text: extractionPrompt },
-          ],
-        }],
-      }),
-    }));
+    // 6. Extract fields — prompt generated from DB field config
+    let extracted: Record<string, any> = {};
+    let confidenceMap: Record<string, number> = {};
 
-    const extractParsed = JSON.parse(new TextDecoder().decode(extractRes.body));
-    const extractText = extractParsed.content?.[0]?.text ?? '{}';
-    let extracted: Record<string, any>;
-    try {
-      extracted = JSON.parse(extractText.replace(/```json|```/g, '').trim());
-    } catch {
-      extracted = {};
+    if (docTypeFields.length > 0 || docTypeCode === 'UNKNOWN') {
+      const extractionPrompt = docTypes.find(dt => dt.doc_type_code === docTypeCode)?.extraction_prompt_override
+        ?? buildExtractionPrompt(docTypeCode, docTypeFields);
+
+      console.log('[Pipeline] Extracting', docTypeFields.length, 'fields for', docTypeCode);
+      const extractRes = await bedrock.send(new InvokeModelCommand({
+        modelId: extractionModel,
+        contentType: 'application/json',
+        accept: 'application/json',
+        body: JSON.stringify({
+          anthropic_version: 'bedrock-2023-05-31',
+          max_tokens: maxTokens,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+              { type: 'text', text: extractionPrompt },
+            ],
+          }],
+        }),
+      }));
+
+      const extractParsed = JSON.parse(new TextDecoder().decode(extractRes.body));
+      const extractText = extractParsed.content?.[0]?.text ?? '{}';
+      try {
+        extracted = JSON.parse(extractText.replace(/```json|```/g, '').trim());
+        confidenceMap = extracted._confidence ?? {};
+        delete extracted._confidence;
+      } catch {
+        console.warn('[Pipeline] Failed to parse extraction JSON');
+      }
     }
-    console.log('[Pipeline] Extracted fields:', Object.keys(extracted).length);
 
-    const confidenceMap: Record<string, number> = extracted._confidence ?? {};
-    delete extracted._confidence;
+    console.log('[Pipeline] Extracted', Object.keys(extracted).length, 'fields');
 
-    // 6. Write evidence event
+    // 7. Write evidence event
     const writer = new EvidenceWriter(client);
     const evt = await writer.writeEvent({
       tenantId, eventTime: new Date(), eventType: 'DOCUMENT_EXTRACTED',
       producerType: 'EXTRACTION_ENGINE', producerRef: documentId,
       entityType: 'DOCUMENT', entityId: documentId,
       payload: {
-        doc_type: docType,
+        doc_type: docTypeCode,
         classification_confidence: classification.confidence,
         fields_extracted: Object.keys(extracted).length,
         model_used: extractionModel,
+        fields_expected: docTypeFields.length,
       },
     });
 
-    // 7. Write ctdm_fields to DB
     await client.query('BEGIN');
 
-    // Update document with detected type
+    // 8. Update document type
     await client.query(
-      `UPDATE documents SET
-         document_type = $1,
-         category = $2,
-         status = 'extracting',
-         last_event_id = $3
-       WHERE id = $4`,
-      [
-        docType,
-        getDocCategory(docType),
-        evt.id,
-        documentId,
-      ]
+      `UPDATE documents SET document_type = $1, category = $2, status = 'extracting', last_event_id = $3 WHERE id = $4`,
+      [docTypeCode, getDocCategory(docTypes, docTypeCode), evt.id, documentId]
     );
 
-    // Insert ctdm_fields
+    // 9. Write ctdm_fields
     for (const [key, value] of Object.entries(extracted)) {
       if (value === null || value === undefined || value === '') continue;
-      if (typeof value === 'object' && !Array.isArray(value)) continue; // skip nested objects
+      if (typeof value === 'object' && !Array.isArray(value)) continue;
 
       const resolvedValue = Array.isArray(value) ? JSON.stringify(value) : String(value);
-      const confidence = confidenceMap[key] ?? classification.confidence * 0.85;
 
-      const status = confidence >= 0.85 ? 'auto_approved'
-        : confidence >= 0.70 ? 'recommended' : 'review_required';
+      // Use field-specific threshold if configured, else tenant default
+      const fieldCfg = docTypeFields.find((f: any) => f.field_key === key);
+      const fieldThreshold = fieldCfg?.confidence_threshold ?? null;
+      const rawConfidence = confidenceMap[key] ?? (classification.confidence * 0.85);
+      const confidence = Math.max(0, Math.min(1, rawConfidence));
+
+      const effectiveThreshold = fieldThreshold ?? thresholdAuto;
+      const status = confidence >= effectiveThreshold ? 'auto_approved'
+        : confidence >= thresholdRecommended ? 'recommended' : 'review_required';
 
       await client.query(
         `INSERT INTO ctdm_fields
-           (tenant_id, shipment_id, document_id, field_key, resolved_value,
-            confidence, status, last_event_id)
+           (tenant_id, shipment_id, document_id, field_key, resolved_value, confidence, status, last_event_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
          ON CONFLICT (tenant_id, shipment_id, document_id, field_key) DO UPDATE SET
-           resolved_value = EXCLUDED.resolved_value,
-           confidence = EXCLUDED.confidence,
-           status = EXCLUDED.status,
-           updated_at = NOW()`,
-        [
-          tenantId,
-          doc.shipment_id,
-          documentId,
-          key,
-          resolvedValue,
-          confidence,
-          status,
-          evt.id,
-        ]
+           resolved_value = EXCLUDED.resolved_value, confidence = EXCLUDED.confidence,
+           status = EXCLUDED.status, updated_at = NOW()`,
+        [tenantId, doc.shipment_id, documentId, key, resolvedValue, confidence, status, evt.id]
       );
     }
 
-    // 8. Write identity signals
-    const signalMappings = IDENTITY_SIGNAL_MAPPING[docType] ?? [];
-    for (const mapping of signalMappings) {
-      const value = getNestedValue(extracted, mapping.field);
-      if (!value || value.trim() === '' || value === 'null') continue;
+    // 10. Validate mandatory CEISA fields — flag missing ones
+    for (const fieldCfg of docTypeFields.filter((f: any) => f.is_mandatory_ceisa)) {
+      const value = extracted[fieldCfg.field_key];
+      if (!value || value === '') {
+        await client.query(
+          `INSERT INTO validation_errors
+             (tenant_id, shipment_id, document_id, field_key, rule_code,
+              expected_value, actual_value, severity, resolved)
+           VALUES ($1,$2,$3,$4,'MANDATORY_CEISA_MISSING','<required>','',
+                  'ERROR', false)
+           ON CONFLICT DO NOTHING`,
+          [tenantId, doc.shipment_id, documentId, fieldCfg.field_key]
+        );
+      }
+    }
 
+    // 11. Write identity signals from key fields
+    const SIGNAL_MAP: Record<string, string> = {
+      invoice_number: 'INVOICE_NUMBER', bl_number: 'BL_NUMBER',
+      po_number: 'PO_NUMBER', nomor_pendaftaran: 'BC_NUMBER',
+      nomor_bc11: 'BC11_NUMBER', vessel_name: 'VESSEL_NAME',
+    };
+    for (const [fieldKey, signalType] of Object.entries(SIGNAL_MAP)) {
+      const value = extracted[fieldKey];
+      if (!value || value.trim() === '') continue;
+      const conf = confidenceMap[fieldKey] ?? classification.confidence;
       await client.query(
         `INSERT INTO identity_signals
-           (tenant_id, signal_type, raw_value, normalized_value,
-            source_document_id, confidence, is_active)
+           (tenant_id, signal_type, raw_value, normalized_value, source_document_id, confidence, is_active)
          VALUES ($1,$2,$3,$3,$4,$5,true)
          ON CONFLICT (tenant_id, signal_type, normalized_value) DO UPDATE SET
-           confidence = GREATEST(identity_signals.confidence, EXCLUDED.confidence),
-           updated_at = NOW()`,
-        [tenantId, mapping.signalType, value.trim(), documentId, mapping.weight * classification.confidence]
+           confidence = GREATEST(identity_signals.confidence, EXCLUDED.confidence), updated_at = NOW()`,
+        [tenantId, signalType, String(value).trim(), documentId, conf]
       );
     }
 
-    // 9. Update document status → extracted
+    // 12. Update document → extracted
     await client.query(
       `UPDATE documents SET status = 'extracted', last_event_id = $1 WHERE id = $2`,
       [evt.id, documentId]
     );
 
-    // 10. Update shipment health
+    // 13. Update shipment health
     if (doc.shipment_id) {
-      await updateShipmentHealth(client, doc.shipment_id, tenantId, evt.id);
+      const { rows: allDocs } = await client.query(
+        `SELECT status FROM documents WHERE shipment_id = $1`, [doc.shipment_id]
+      );
+      const { rows: fieldStats } = await client.query(
+        `SELECT AVG(confidence) as avg_conf,
+                SUM(CASE WHEN status = 'review_required' THEN 1 ELSE 0 END) as needs_review
+         FROM ctdm_fields WHERE shipment_id = $1 AND tenant_id = $2`,
+        [doc.shipment_id, tenantId]
+      );
+      const { rows: validationCount } = await client.query(
+        `SELECT COUNT(*) as cnt FROM validation_errors WHERE shipment_id = $1 AND resolved = false`,
+        [doc.shipment_id]
+      );
+
+      const avgConf = parseFloat(fieldStats[0]?.avg_conf ?? '0');
+      const needsReview = parseInt(fieldStats[0]?.needs_review ?? '0');
+      const validationErrors = parseInt(validationCount[0]?.cnt ?? '0');
+      const allExtracted = allDocs.every((d: any) => d.status === 'extracted');
+
+      const health = validationErrors > 5 || needsReview > 5 ? 'CRITICAL'
+        : validationErrors > 0 || needsReview > 0 || avgConf < 0.75 ? 'NEEDS_ATTENTION'
+        : 'HEALTHY';
+
+      const readinessScore = Math.round(Math.min(avgConf * 100, 100));
+
+      await client.query(
+        `UPDATE shipments SET health = $1, ceisa_readiness_score = $2,
+           status = CASE WHEN $3 AND status = 'DRAFT' THEN 'UNDER_REVIEW' ELSE status END,
+           last_event_id = $4
+         WHERE id = $5`,
+        [health, readinessScore, allExtracted, evt.id, doc.shipment_id]
+      );
     }
 
     await client.query('COMMIT');
-    console.log('[Pipeline] DONE', { documentId, docType, fields: Object.keys(extracted).length });
-
-    return { success: true, documentId, docType, fieldsExtracted: Object.keys(extracted).length };
+    console.log('[Pipeline] DONE', { documentId, docTypeCode, fields: Object.keys(extracted).length });
+    return { success: true, documentId, docTypeCode, fieldsExtracted: Object.keys(extracted).length };
 
   } catch (err: any) {
     await client.query('ROLLBACK').catch(() => {});
-    // Mark document as needs_review on error
-    await client.query(
-      `UPDATE documents SET status = 'needs_review' WHERE id = $1`,
-      [documentId]
-    ).catch(() => {});
+    await client.query(`UPDATE documents SET status = 'needs_review' WHERE id = $1`, [documentId]).catch(() => {});
     console.error('[Pipeline] ERROR', err.message);
     return { success: false, error: err.message };
   } finally {
     client.release();
   }
 };
-
-function getDocCategory(docType: string): string {
-  const map: Record<string, string> = {
-    COMMERCIAL_INVOICE: 'COMMERCIAL',
-    PACKING_LIST:       'COMMERCIAL',
-    PURCHASE_ORDER:     'COMMERCIAL',
-    BILL_OF_LADING:     'TRANSPORT',
-    BC_2_3:             'CUSTOMS',
-    BC_1_1:             'CUSTOMS',
-    INWARD_MANIFEST:    'CUSTOMS',
-    LETTER_OF_GUARANTEE:'SUPPORTING',
-  };
-  return map[docType] ?? 'SUPPORTING';
-}
-
-async function updateShipmentHealth(client: any, shipmentId: string, tenantId: string, eventId: string) {
-  const { rows: docs } = await client.query(
-    `SELECT status, document_type FROM documents
-     WHERE shipment_id = $1 AND tenant_id = $2`,
-    [shipmentId, tenantId]
-  );
-
-  const { rows: fields } = await client.query(
-    `SELECT AVG(confidence) as avg_conf,
-            SUM(CASE WHEN status = 'review_required' THEN 1 ELSE 0 END) as needs_review
-     FROM ctdm_fields WHERE shipment_id = $1 AND tenant_id = $2`,
-    [shipmentId, tenantId]
-  );
-
-  const avgConf = parseFloat(fields[0]?.avg_conf ?? '0');
-  const needsReview = parseInt(fields[0]?.needs_review ?? '0');
-  const hasAllExtracted = docs.every((d: any) => d.status === 'extracted');
-
-  const health = needsReview > 3 ? 'CRITICAL'
-    : needsReview > 0 || avgConf < 0.75 ? 'NEEDS_ATTENTION'
-    : 'HEALTHY';
-
-  const readinessScore = Math.round(Math.min(avgConf * 100, 100));
-
-  await client.query(
-    `UPDATE shipments SET
-       health = $1, ceisa_readiness_score = $2,
-       status = CASE WHEN $3 THEN 'UNDER_REVIEW' ELSE status END,
-       last_event_id = $4
-     WHERE id = $5`,
-    [health, readinessScore, hasAllExtracted, eventId, shipmentId]
-  );
-}

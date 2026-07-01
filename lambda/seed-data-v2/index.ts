@@ -5,6 +5,7 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { getPool } from '../shared/dbPool.js';
 import { EvidenceWriter } from '../shared/evidence/index.js';
+import { DOC_TYPE_DEFAULTS } from '../shared/docTypeDefaults.js';
 
 const cognito = new CognitoIdentityProviderClient({});
 const USER_POOL_ID = process.env.USER_POOL_ID!;
@@ -52,6 +53,38 @@ export const handler: Handler = async () => {
       }));
     } catch (e: any) {
       if (!e.message?.includes('exists')) throw e;
+    }
+
+
+    // Seed doc type + field configs (config-driven, Rule #4)
+    for (const docType of DOC_TYPE_DEFAULTS) {
+      await client.query(
+        `INSERT INTO tenant_doc_type_config
+           (tenant_id, doc_type_code, display_name, category, classification_hints, is_enabled)
+         VALUES ($1,$2,$3,$4,$5,true)
+         ON CONFLICT (tenant_id, doc_type_code) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           classification_hints = EXCLUDED.classification_hints,
+           updated_at = NOW()`,
+        [tenantId, docType.doc_type_code, docType.display_name, docType.category, docType.classification_hints]
+      );
+      for (const field of docType.fields) {
+        await client.query(
+          `INSERT INTO tenant_doc_field_config
+             (tenant_id, doc_type_code, field_key, display_name, is_enabled,
+              is_mandatory, is_mandatory_ceisa, ceisa_field_ref,
+              confidence_threshold, sort_order)
+           VALUES ($1,$2,$3,$4,true,$5,$6,$7,$8,$9)
+           ON CONFLICT (tenant_id, doc_type_code, field_key) DO UPDATE SET
+             display_name = EXCLUDED.display_name,
+             is_mandatory = EXCLUDED.is_mandatory,
+             is_mandatory_ceisa = EXCLUDED.is_mandatory_ceisa,
+             updated_at = NOW()`,
+          [tenantId, docType.doc_type_code, field.field_key, field.display_name,
+           field.is_mandatory, field.is_mandatory_ceisa,
+           field.ceisa_field_ref ?? null, field.confidence_threshold ?? null, field.sort_order]
+        );
+      }
     }
 
     await client.query('COMMIT');

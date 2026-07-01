@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useTenant } from "../../store/tenantContext";
 import { useAuth } from "../../lib/AuthContext";
 import { apiClient } from "../../lib/apiClient";
+import { DocTypeManager } from "./DocTypeManager";
 import {
   Cpu, Scale, FileCheck, Plug, BookOpen, Users, ChevronRight,
   Save, RotateCcw, Check, AlertTriangle, Info
@@ -768,6 +769,15 @@ function ExtractionSection({ tenantId }: { tenantId: string }) {
         <button onClick={save} disabled={saving} className="btn-primary gap-1">
           {saved ? '✅ Tersimpan' : saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
         </button>
+
+        <div className="mt-6 pt-6 border-t border-[#DFE1E6]">
+          <p className="section-title mb-1">Doc Type & Field Manager</p>
+          <p className="text-xs text-[#6B778C] mb-4">
+            Konfigurasi field per tipe dokumen — field mana yang diekstrak, mana yang wajib CEISA,
+            dan confidence threshold per field. Semua configurable tanpa redeploy.
+          </p>
+          <DocTypeManager tenantId={tenantId} />
+        </div>
       </div>
     </SectionCard>
   );
