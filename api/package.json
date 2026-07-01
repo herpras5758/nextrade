@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/api/src/server.js"
   },
   "dependencies": {
     "fastify": "^4.28.1",
@@ -17,7 +17,8 @@
     "@aws-sdk/client-s3": "^3.620.0",
     "@aws-sdk/s3-request-presigner": "^3.620.0",
     "jwks-rsa": "^3.1.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "@aws-sdk/client-lambda": "^3.620.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

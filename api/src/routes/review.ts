@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { withTenant } from "../db/pool.js";
 import { assertTenantAccess } from "../middleware/auth.js";
 import { computeUnifiedShipmentStatus } from "../lib/shipmentStatus.js";
-import { mapToCeisaBc23 } from "../lib/mappers/ceisaMapper.js";
+import { mapBC23Payload } from "../lib/mappers/ceisaMapper.js";
 
 export async function reviewRoutes(app: FastifyInstance) {
   app.get<{ Params: { tenantId: string; id: string } }>(
@@ -118,7 +118,7 @@ export async function reviewRoutes(app: FastifyInstance) {
             },
           });
         }
-        const payload = await mapToCeisaBc23(client, id, tenantId);
+        const payload = await mapBC23Payload(client, id, tenantId);
         return { shipmentId: id, status: statusResult.status, payload };
       });
     }

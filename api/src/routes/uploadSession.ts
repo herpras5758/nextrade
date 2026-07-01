@@ -19,7 +19,7 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { tenantId } = req.params;
       assertTenantAccess(req.auth!, tenantId);
-      const userId = req.auth!.sub;
+      const userId = req.auth!.userId;
       const sessionId = crypto.randomUUID();
       const stagingPrefix = `staging/${tenantId}/${userId}/${sessionId}/`;
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -84,7 +84,7 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
       await lambda.send(new InvokeCommand({
         FunctionName: DRY_RUN_FN,
         InvocationType: 'Event',
-        Payload: JSON.stringify({ sessionId, tenantId, userId: req.auth!.sub }),
+        Payload: JSON.stringify({ sessionId, tenantId, userId: req.auth!.userId }),
       }));
 
       await withTenant(tenantId, async (client) => {
@@ -170,7 +170,7 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
       const result = await lambda.send(new InvokeCommand({
         FunctionName: COMMIT_FN,
         InvocationType: 'RequestResponse',  // sync for commit
-        Payload: JSON.stringify({ sessionId, tenantId, userId: req.auth!.sub }),
+        Payload: JSON.stringify({ sessionId, tenantId, userId: req.auth!.userId }),
       }));
 
       const response = JSON.parse(Buffer.from(result.Payload!).toString());

@@ -58,13 +58,13 @@ export async function findBestShipmentMatch(
   }
 
   // 2. Score each shipment
-  const scored = shipments.map(s => {
+  const scored = shipments.map((s: any) => {
     const result = computeConfidence(incomingSignals, s.existing_signals);
     return { ...s, matchResult: result };
   });
 
   // 3. Find best match
-  scored.sort((a, b) => b.matchResult.overallScore - a.matchResult.overallScore);
+  scored.sort((a: any, b: any) => b.matchResult.overallScore - a.matchResult.overallScore);
   const best = scored[0];
 
   if (best.matchResult.tier === 'NEW_SHIPMENT') {
