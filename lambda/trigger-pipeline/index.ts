@@ -133,6 +133,18 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
     const pdfBytes = await s3Obj.Body!.transformToByteArray();
     const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
 
+    // Detect media type from filename
+    const fileName = (doc.file_name ?? '').toLowerCase();
+    const mediaType = fileName.endsWith('.png') ? 'image/png'
+      : fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') ? 'image/jpeg'
+      : fileName.endsWith('.webp') ? 'image/webp'
+      : 'application/pdf';
+    console.log('[Pipeline] File type:', mediaType, 'for', doc.file_name);
+
+    const fileContentBlock = mediaType === 'application/pdf'
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } }
+      : { type: 'image', source: { type: 'base64', media_type: mediaType, data: pdfBase64 } };
+
     // 5. Classify document — prompt built from DB config
     console.log('[Pipeline] Classifying...');
     const classifyPrompt = buildClassificationPrompt(docTypes);
@@ -146,7 +158,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
         messages: [{
           role: 'user',
           content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+            fileContentBlock as any,
             { type: 'text', text: classifyPrompt },
           ],
         }],
@@ -185,7 +197,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
           messages: [{
             role: 'user',
             content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+              fileContentBlock as any,
               { type: 'text', text: extractionPrompt },
             ],
           }],
@@ -251,7 +263,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
          ON CONFLICT (tenant_id, shipment_id, document_id, field_key) DO UPDATE SET
            resolved_value = EXCLUDED.resolved_value, confidence = EXCLUDED.confidence,
-           status = EXCLUDED.status, updated_at = NOW()`,
+           status = EXCLUDED.status`,
         [tenantId, doc.shipment_id, documentId, key, resolvedValue, confidence, status, evt.id]
       );
     }
@@ -262,10 +274,9 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
       if (!value || value === '') {
         await client.query(
           `INSERT INTO validation_errors
-             (tenant_id, shipment_id, document_id, field_key, rule_code,
-              expected_value, actual_value, severity, resolved)
-           VALUES ($1,$2,$3,$4,'MANDATORY_CEISA_MISSING','<required>','',
-                  'ERROR', false)
+             (tenant_id, shipment_id, document_id_a, field_key,
+              expected_value, actual_value, resolved)
+           VALUES ($1,$2,$3,$4,'<required>','',false)
            ON CONFLICT DO NOTHING`,
           [tenantId, doc.shipment_id, documentId, fieldCfg.field_key]
         );
@@ -287,7 +298,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
            (tenant_id, signal_type, raw_value, normalized_value, source_document_id, confidence, is_active)
          VALUES ($1,$2,$3,$3,$4,$5,true)
          ON CONFLICT (tenant_id, signal_type, normalized_value) DO UPDATE SET
-           confidence = GREATEST(identity_signals.confidence, EXCLUDED.confidence), updated_at = NOW()`,
+           confidence = GREATEST(identity_signals.confidence, EXCLUDED.confidence), `,
         [tenantId, signalType, String(value).trim(), documentId, conf]
       );
     }
