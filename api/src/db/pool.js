@@ -1,0 +1,78 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getPool = getPool;
+exports.withTenant = withTenant;
+const pg_1 = require("pg");
+const client_secrets_manager_1 = require("@aws-sdk/client-secrets-manager");
+// Rule #7 (Multi-Tenant Context Switch) enforcement, second line of
+// defense: every query MUST run with app.current_tenant_id set on the
+// session, because the RLS policies in schema.sql key off it. The
+// `withTenant` helper below is the ONLY sanctioned way routes touch the
+// database — it makes "forgot to scope by tenant" structurally
+// impossible rather than relying on every route author remembering a
+// WHERE clause.
+let pool = null;
+async function getDbCredentials() {
+    // Two different injection patterns exist in this codebase, both
+    // valid for their respective compute platform:
+    //   - ECS (Compute Stack): injects the SECRET VALUE directly as the
+    //     DB_CREDENTIALS env var via ecs.Secret.fromSecretsManager — no
+    //     extra API call needed at runtime, the container starts with it
+    //     already resolved.
+    //   - Lambda (Pipeline/Data/Auth stacks): only gets DB_SECRET_ARN as
+    //     a plain env var and fetches the value itself via
+    //     GetSecretValueCommand at invocation time.
+    // This function supports both, preferring the already-resolved value
+    // when present so the API doesn't make an unnecessary Secrets Manager
+    // call on every cold connection.
+    const injectedCredentials = process.env.DB_CREDENTIALS;
+    if (injectedCredentials) {
+        return JSON.parse(injectedCredentials);
+    }
+    const secretArn = process.env.DB_SECRET_ARN;
+    if (!secretArn)
+        throw new Error("Neither DB_CREDENTIALS nor DB_SECRET_ARN is set");
+    const client = new client_secrets_manager_1.SecretsManagerClient({});
+    const result = await client.send(new client_secrets_manager_1.GetSecretValueCommand({ SecretId: secretArn }));
+    return JSON.parse(result.SecretString);
+}
+async function getPool() {
+    if (pool)
+        return pool;
+    const creds = await getDbCredentials();
+    pool = new pg_1.default.Pool({
+        host: creds.host,
+        port: creds.port,
+        user: creds.username,
+        password: creds.password,
+        database: creds.dbname,
+        max: 10,
+        ssl: { rejectUnauthorized: false }, // RDS managed cert
+    });
+    return pool;
+}
+/**
+ * Runs `fn` with a dedicated client that has app.current_tenant_id set
+ * for the duration of the transaction. Rule #7: this is the only path
+ * into the database — there is no "raw pool.query" used in route
+ * handlers, specifically so a tenant-scoping mistake can't compile.
+ */
+async function withTenant(tenantId, fn) {
+    const p = await getPool();
+    const client = await p.connect();
+    try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
+        const result = await fn(client);
+        await client.query("COMMIT");
+        return result;
+    }
+    catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+    }
+    finally {
+        client.release();
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicG9vbC5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbInBvb2wudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFtREEsMEJBYUM7QUFRRCxnQ0FrQkM7QUExRkQsMkJBQW9CO0FBQ3BCLDRFQUE4RjtBQUU5RixvRUFBb0U7QUFDcEUsc0VBQXNFO0FBQ3RFLGtFQUFrRTtBQUNsRSx3RUFBd0U7QUFDeEUsK0RBQStEO0FBQy9ELHFFQUFxRTtBQUNyRSxnQkFBZ0I7QUFFaEIsSUFBSSxJQUFJLEdBQW1CLElBQUksQ0FBQztBQUVoQyxLQUFLLFVBQVUsZ0JBQWdCO0lBQzdCLGdFQUFnRTtJQUNoRSwrQ0FBK0M7SUFDL0Msb0VBQW9FO0lBQ3BFLG9FQUFvRTtJQUNwRSxxRUFBcUU7SUFDckUsd0JBQXdCO0lBQ3hCLHFFQUFxRTtJQUNyRSx1REFBdUQ7SUFDdkQsZ0RBQWdEO0lBQ2hELHFFQUFxRTtJQUNyRSxzRUFBc0U7SUFDdEUsaUNBQWlDO0lBQ2pDLE1BQU0sbUJBQW1CLEdBQUcsT0FBTyxDQUFDLEdBQUcsQ0FBQyxjQUFjLENBQUM7SUFDdkQsSUFBSSxtQkFBbUIsRUFBRSxDQUFDO1FBQ3hCLE9BQU8sSUFBSSxDQUFDLEtBQUssQ0FBQyxtQkFBbUIsQ0FNcEMsQ0FBQztJQUNKLENBQUM7SUFFRCxNQUFNLFNBQVMsR0FBRyxPQUFPLENBQUMsR0FBRyxDQUFDLGFBQWEsQ0FBQztJQUM1QyxJQUFJLENBQUMsU0FBUztRQUFFLE1BQU0sSUFBSSxLQUFLLENBQUMsaURBQWlELENBQUMsQ0FBQztJQUVuRixNQUFNLE1BQU0sR0FBRyxJQUFJLDZDQUFvQixDQUFDLEVBQUUsQ0FBQyxDQUFDO0lBQzVDLE1BQU0sTUFBTSxHQUFHLE1BQU0sTUFBTSxDQUFDLElBQUksQ0FBQyxJQUFJLDhDQUFxQixDQUFDLEVBQUUsUUFBUSxFQUFFLFNBQVMsRUFBRSxDQUFDLENBQUMsQ0FBQztJQUNyRixPQUFPLElBQUksQ0FBQyxLQUFLLENBQUMsTUFBTSxDQUFDLFlBQWEsQ0FNckMsQ0FBQztBQUNKLENBQUM7QUFFTSxLQUFLLFVBQVUsT0FBTztJQUMzQixJQUFJLElBQUk7UUFBRSxPQUFPLElBQUksQ0FBQztJQUN0QixNQUFNLEtBQUssR0FBRyxNQUFNLGdCQUFnQixFQUFFLENBQUM7SUFDdkMsSUFBSSxHQUFHLElBQUksWUFBRSxDQUFDLElBQUksQ0FBQztRQUNqQixJQUFJLEVBQUUsS0FBSyxDQUFDLElBQUk7UUFDaEIsSUFBSSxFQUFFLEtBQUssQ0FBQyxJQUFJO1FBQ2hCLElBQUksRUFBRSxLQUFLLENBQUMsUUFBUTtRQUNwQixRQUFRLEVBQUUsS0FBSyxDQUFDLFFBQVE7UUFDeEIsUUFBUSxFQUFFLEtBQUssQ0FBQyxNQUFNO1FBQ3RCLEdBQUcsRUFBRSxFQUFFO1FBQ1AsR0FBRyxFQUFFLEVBQUUsa0JBQWtCLEVBQUUsS0FBSyxFQUFFLEVBQUUsbUJBQW1CO0tBQ3hELENBQUMsQ0FBQztJQUNILE9BQU8sSUFBSSxDQUFDO0FBQ2QsQ0FBQztBQUVEOzs7OztHQUtHO0FBQ0ksS0FBSyxVQUFVLFVBQVUsQ0FDOUIsUUFBZ0IsRUFDaEIsRUFBeUM7SUFFekMsTUFBTSxDQUFDLEdBQUcsTUFBTSxPQUFPLEVBQUUsQ0FBQztJQUMxQixNQUFNLE1BQU0sR0FBRyxNQUFNLENBQUMsQ0FBQyxPQUFPLEVBQUUsQ0FBQztJQUNqQyxJQUFJLENBQUM7UUFDSCxNQUFNLE1BQU0sQ0FBQyxLQUFLLENBQUMsT0FBTyxDQUFDLENBQUM7UUFDNUIsTUFBTSxNQUFNLENBQUMsS0FBSyxDQUFDLHNEQUFzRCxFQUFFLENBQUMsUUFBUSxDQUFDLENBQUMsQ0FBQztRQUN2RixNQUFNLE1BQU0sR0FBRyxNQUFNLEVBQUUsQ0FBQyxNQUFNLENBQUMsQ0FBQztRQUNoQyxNQUFNLE1BQU0sQ0FBQyxLQUFLLENBQUMsUUFBUSxDQUFDLENBQUM7UUFDN0IsT0FBTyxNQUFNLENBQUM7SUFDaEIsQ0FBQztJQUFDLE9BQU8sR0FBRyxFQUFFLENBQUM7UUFDYixNQUFNLE1BQU0sQ0FBQyxLQUFLLENBQUMsVUFBVSxDQUFDLENBQUM7UUFDL0IsTUFBTSxHQUFHLENBQUM7SUFDWixDQUFDO1lBQVMsQ0FBQztRQUNULE1BQU0sQ0FBQyxPQUFPLEVBQUUsQ0FBQztJQUNuQixDQUFDO0FBQ0gsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBwZyBmcm9tIFwicGdcIjtcbmltcG9ydCB7IFNlY3JldHNNYW5hZ2VyQ2xpZW50LCBHZXRTZWNyZXRWYWx1ZUNvbW1hbmQgfSBmcm9tIFwiQGF3cy1zZGsvY2xpZW50LXNlY3JldHMtbWFuYWdlclwiO1xuXG4vLyBSdWxlICM3IChNdWx0aS1UZW5hbnQgQ29udGV4dCBTd2l0Y2gpIGVuZm9yY2VtZW50LCBzZWNvbmQgbGluZSBvZlxuLy8gZGVmZW5zZTogZXZlcnkgcXVlcnkgTVVTVCBydW4gd2l0aCBhcHAuY3VycmVudF90ZW5hbnRfaWQgc2V0IG9uIHRoZVxuLy8gc2Vzc2lvbiwgYmVjYXVzZSB0aGUgUkxTIHBvbGljaWVzIGluIHNjaGVtYS5zcWwga2V5IG9mZiBpdC4gVGhlXG4vLyBgd2l0aFRlbmFudGAgaGVscGVyIGJlbG93IGlzIHRoZSBPTkxZIHNhbmN0aW9uZWQgd2F5IHJvdXRlcyB0b3VjaCB0aGVcbi8vIGRhdGFiYXNlIOKAlCBpdCBtYWtlcyBcImZvcmdvdCB0byBzY29wZSBieSB0ZW5hbnRcIiBzdHJ1Y3R1cmFsbHlcbi8vIGltcG9zc2libGUgcmF0aGVyIHRoYW4gcmVseWluZyBvbiBldmVyeSByb3V0ZSBhdXRob3IgcmVtZW1iZXJpbmcgYVxuLy8gV0hFUkUgY2xhdXNlLlxuXG5sZXQgcG9vbDogcGcuUG9vbCB8IG51bGwgPSBudWxsO1xuXG5hc3luYyBmdW5jdGlvbiBnZXREYkNyZWRlbnRpYWxzKCkge1xuICAvLyBUd28gZGlmZmVyZW50IGluamVjdGlvbiBwYXR0ZXJucyBleGlzdCBpbiB0aGlzIGNvZGViYXNlLCBib3RoXG4gIC8vIHZhbGlkIGZvciB0aGVpciByZXNwZWN0aXZlIGNvbXB1dGUgcGxhdGZvcm06XG4gIC8vICAgLSBFQ1MgKENvbXB1dGUgU3RhY2spOiBpbmplY3RzIHRoZSBTRUNSRVQgVkFMVUUgZGlyZWN0bHkgYXMgdGhlXG4gIC8vICAgICBEQl9DUkVERU5USUFMUyBlbnYgdmFyIHZpYSBlY3MuU2VjcmV0LmZyb21TZWNyZXRzTWFuYWdlciDigJQgbm9cbiAgLy8gICAgIGV4dHJhIEFQSSBjYWxsIG5lZWRlZCBhdCBydW50aW1lLCB0aGUgY29udGFpbmVyIHN0YXJ0cyB3aXRoIGl0XG4gIC8vICAgICBhbHJlYWR5IHJlc29sdmVkLlxuICAvLyAgIC0gTGFtYmRhIChQaXBlbGluZS9EYXRhL0F1dGggc3RhY2tzKTogb25seSBnZXRzIERCX1NFQ1JFVF9BUk4gYXNcbiAgLy8gICAgIGEgcGxhaW4gZW52IHZhciBhbmQgZmV0Y2hlcyB0aGUgdmFsdWUgaXRzZWxmIHZpYVxuICAvLyAgICAgR2V0U2VjcmV0VmFsdWVDb21tYW5kIGF0IGludm9jYXRpb24gdGltZS5cbiAgLy8gVGhpcyBmdW5jdGlvbiBzdXBwb3J0cyBib3RoLCBwcmVmZXJyaW5nIHRoZSBhbHJlYWR5LXJlc29sdmVkIHZhbHVlXG4gIC8vIHdoZW4gcHJlc2VudCBzbyB0aGUgQVBJIGRvZXNuJ3QgbWFrZSBhbiB1bm5lY2Vzc2FyeSBTZWNyZXRzIE1hbmFnZXJcbiAgLy8gY2FsbCBvbiBldmVyeSBjb2xkIGNvbm5lY3Rpb24uXG4gIGNvbnN0IGluamVjdGVkQ3JlZGVudGlhbHMgPSBwcm9jZXNzLmVudi5EQl9DUkVERU5USUFMUztcbiAgaWYgKGluamVjdGVkQ3JlZGVudGlhbHMpIHtcbiAgICByZXR1cm4gSlNPTi5wYXJzZShpbmplY3RlZENyZWRlbnRpYWxzKSBhcyB7XG4gICAgICB1c2VybmFtZTogc3RyaW5nO1xuICAgICAgcGFzc3dvcmQ6IHN0cmluZztcbiAgICAgIGhvc3Q6IHN0cmluZztcbiAgICAgIHBvcnQ6IG51bWJlcjtcbiAgICAgIGRibmFtZTogc3RyaW5nO1xuICAgIH07XG4gIH1cblxuICBjb25zdCBzZWNyZXRBcm4gPSBwcm9jZXNzLmVudi5EQl9TRUNSRVRfQVJOO1xuICBpZiAoIXNlY3JldEFybikgdGhyb3cgbmV3IEVycm9yKFwiTmVpdGhlciBEQl9DUkVERU5USUFMUyBub3IgREJfU0VDUkVUX0FSTiBpcyBzZXRcIik7XG5cbiAgY29uc3QgY2xpZW50ID0gbmV3IFNlY3JldHNNYW5hZ2VyQ2xpZW50KHt9KTtcbiAgY29uc3QgcmVzdWx0ID0gYXdhaXQgY2xpZW50LnNlbmQobmV3IEdldFNlY3JldFZhbHVlQ29tbWFuZCh7IFNlY3JldElkOiBzZWNyZXRBcm4gfSkpO1xuICByZXR1cm4gSlNPTi5wYXJzZShyZXN1bHQuU2VjcmV0U3RyaW5nISkgYXMge1xuICAgIHVzZXJuYW1lOiBzdHJpbmc7XG4gICAgcGFzc3dvcmQ6IHN0cmluZztcbiAgICBob3N0OiBzdHJpbmc7XG4gICAgcG9ydDogbnVtYmVyO1xuICAgIGRibmFtZTogc3RyaW5nO1xuICB9O1xufVxuXG5leHBvcnQgYXN5bmMgZnVuY3Rpb24gZ2V0UG9vbCgpOiBQcm9taXNlPHBnLlBvb2w+IHtcbiAgaWYgKHBvb2wpIHJldHVybiBwb29sO1xuICBjb25zdCBjcmVkcyA9IGF3YWl0IGdldERiQ3JlZGVudGlhbHMoKTtcbiAgcG9vbCA9IG5ldyBwZy5Qb29sKHtcbiAgICBob3N0OiBjcmVkcy5ob3N0LFxuICAgIHBvcnQ6IGNyZWRzLnBvcnQsXG4gICAgdXNlcjogY3JlZHMudXNlcm5hbWUsXG4gICAgcGFzc3dvcmQ6IGNyZWRzLnBhc3N3b3JkLFxuICAgIGRhdGFiYXNlOiBjcmVkcy5kYm5hbWUsXG4gICAgbWF4OiAxMCxcbiAgICBzc2w6IHsgcmVqZWN0VW5hdXRob3JpemVkOiBmYWxzZSB9LCAvLyBSRFMgbWFuYWdlZCBjZXJ0XG4gIH0pO1xuICByZXR1cm4gcG9vbDtcbn1cblxuLyoqXG4gKiBSdW5zIGBmbmAgd2l0aCBhIGRlZGljYXRlZCBjbGllbnQgdGhhdCBoYXMgYXBwLmN1cnJlbnRfdGVuYW50X2lkIHNldFxuICogZm9yIHRoZSBkdXJhdGlvbiBvZiB0aGUgdHJhbnNhY3Rpb24uIFJ1bGUgIzc6IHRoaXMgaXMgdGhlIG9ubHkgcGF0aFxuICogaW50byB0aGUgZGF0YWJhc2Ug4oCUIHRoZXJlIGlzIG5vIFwicmF3IHBvb2wucXVlcnlcIiB1c2VkIGluIHJvdXRlXG4gKiBoYW5kbGVycywgc3BlY2lmaWNhbGx5IHNvIGEgdGVuYW50LXNjb3BpbmcgbWlzdGFrZSBjYW4ndCBjb21waWxlLlxuICovXG5leHBvcnQgYXN5bmMgZnVuY3Rpb24gd2l0aFRlbmFudDxUPihcbiAgdGVuYW50SWQ6IHN0cmluZyxcbiAgZm46IChjbGllbnQ6IHBnLlBvb2xDbGllbnQpID0+IFByb21pc2U8VD5cbik6IFByb21pc2U8VD4ge1xuICBjb25zdCBwID0gYXdhaXQgZ2V0UG9vbCgpO1xuICBjb25zdCBjbGllbnQgPSBhd2FpdCBwLmNvbm5lY3QoKTtcbiAgdHJ5IHtcbiAgICBhd2FpdCBjbGllbnQucXVlcnkoXCJCRUdJTlwiKTtcbiAgICBhd2FpdCBjbGllbnQucXVlcnkoXCJTRUxFQ1Qgc2V0X2NvbmZpZygnYXBwLmN1cnJlbnRfdGVuYW50X2lkJywgJDEsIHRydWUpXCIsIFt0ZW5hbnRJZF0pO1xuICAgIGNvbnN0IHJlc3VsdCA9IGF3YWl0IGZuKGNsaWVudCk7XG4gICAgYXdhaXQgY2xpZW50LnF1ZXJ5KFwiQ09NTUlUXCIpO1xuICAgIHJldHVybiByZXN1bHQ7XG4gIH0gY2F0Y2ggKGVycikge1xuICAgIGF3YWl0IGNsaWVudC5xdWVyeShcIlJPTExCQUNLXCIpO1xuICAgIHRocm93IGVycjtcbiAgfSBmaW5hbGx5IHtcbiAgICBjbGllbnQucmVsZWFzZSgpO1xuICB9XG59XG4iXX0=

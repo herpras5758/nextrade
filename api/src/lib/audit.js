@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.writeAuditLog = writeAuditLog;
+// "Audit First" enterprise quality standard (no exceptions, per the
+// vision doc) — one helper, called from every route that mutates data,
+// instead of routes remembering to log individually.
+async function writeAuditLog(client, params) {
+    await client.query(`INSERT INTO audit_log (tenant_id, actor_id, action, entity_type, entity_id, changes)
+     VALUES ($1, $2, $3, $4, $5, $6)`, [
+        params.tenantId,
+        params.actorId,
+        params.action,
+        params.entityType,
+        params.entityId,
+        params.changes ? JSON.stringify(params.changes) : null,
+    ]);
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiYXVkaXQuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJhdWRpdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiOztBQU1BLHNDQXVCQztBQTNCRCxvRUFBb0U7QUFDcEUsdUVBQXVFO0FBQ3ZFLHFEQUFxRDtBQUU5QyxLQUFLLFVBQVUsYUFBYSxDQUNqQyxNQUFxQixFQUNyQixNQU9DO0lBRUQsTUFBTSxNQUFNLENBQUMsS0FBSyxDQUNoQjtxQ0FDaUMsRUFDakM7UUFDRSxNQUFNLENBQUMsUUFBUTtRQUNmLE1BQU0sQ0FBQyxPQUFPO1FBQ2QsTUFBTSxDQUFDLE1BQU07UUFDYixNQUFNLENBQUMsVUFBVTtRQUNqQixNQUFNLENBQUMsUUFBUTtRQUNmLE1BQU0sQ0FBQyxPQUFPLENBQUMsQ0FBQyxDQUFDLElBQUksQ0FBQyxTQUFTLENBQUMsTUFBTSxDQUFDLE9BQU8sQ0FBQyxDQUFDLENBQUMsQ0FBQyxJQUFJO0tBQ3ZELENBQ0YsQ0FBQztBQUNKLENBQUMiLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgcGcgZnJvbSBcInBnXCI7XG5cbi8vIFwiQXVkaXQgRmlyc3RcIiBlbnRlcnByaXNlIHF1YWxpdHkgc3RhbmRhcmQgKG5vIGV4Y2VwdGlvbnMsIHBlciB0aGVcbi8vIHZpc2lvbiBkb2MpIOKAlCBvbmUgaGVscGVyLCBjYWxsZWQgZnJvbSBldmVyeSByb3V0ZSB0aGF0IG11dGF0ZXMgZGF0YSxcbi8vIGluc3RlYWQgb2Ygcm91dGVzIHJlbWVtYmVyaW5nIHRvIGxvZyBpbmRpdmlkdWFsbHkuXG5cbmV4cG9ydCBhc3luYyBmdW5jdGlvbiB3cml0ZUF1ZGl0TG9nKFxuICBjbGllbnQ6IHBnLlBvb2xDbGllbnQsXG4gIHBhcmFtczoge1xuICAgIHRlbmFudElkOiBzdHJpbmc7XG4gICAgYWN0b3JJZDogc3RyaW5nO1xuICAgIGFjdGlvbjogc3RyaW5nO1xuICAgIGVudGl0eVR5cGU6IHN0cmluZztcbiAgICBlbnRpdHlJZDogc3RyaW5nO1xuICAgIGNoYW5nZXM/OiBSZWNvcmQ8c3RyaW5nLCB1bmtub3duPjtcbiAgfVxuKSB7XG4gIGF3YWl0IGNsaWVudC5xdWVyeShcbiAgICBgSU5TRVJUIElOVE8gYXVkaXRfbG9nICh0ZW5hbnRfaWQsIGFjdG9yX2lkLCBhY3Rpb24sIGVudGl0eV90eXBlLCBlbnRpdHlfaWQsIGNoYW5nZXMpXG4gICAgIFZBTFVFUyAoJDEsICQyLCAkMywgJDQsICQ1LCAkNilgLFxuICAgIFtcbiAgICAgIHBhcmFtcy50ZW5hbnRJZCxcbiAgICAgIHBhcmFtcy5hY3RvcklkLFxuICAgICAgcGFyYW1zLmFjdGlvbixcbiAgICAgIHBhcmFtcy5lbnRpdHlUeXBlLFxuICAgICAgcGFyYW1zLmVudGl0eUlkLFxuICAgICAgcGFyYW1zLmNoYW5nZXMgPyBKU09OLnN0cmluZ2lmeShwYXJhbXMuY2hhbmdlcykgOiBudWxsLFxuICAgIF1cbiAgKTtcbn1cbiJdfQ==
