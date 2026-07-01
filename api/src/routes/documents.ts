@@ -93,4 +93,61 @@ export async function documentRoutes(app: FastifyInstance) {
       return rows;
     });
   });
+
+  app.get<{ Params: { tenantId: string; id: string } }>(
+    "/tenants/:tenantId/documents/:id",
+    async (request, reply) => {
+      const { tenantId, id } = request.params;
+      assertTenantAccess(request.auth!, tenantId);
+      return withTenant(tenantId, async (client) => {
+        const { rows } = await client.query(
+          `SELECT id, shipment_id, file_name, document_type, status, intake_source, s3_key, uploaded_at
+           FROM documents WHERE id = $1 AND tenant_id = $2`,
+          [id, tenantId]
+        );
+        if (rows.length === 0) return reply.code(404).send({ error: "Document not found" });
+        return rows[0];
+      });
+    }
+  );
+
+  app.get<{ Params: { tenantId: string; id: string } }>(
+    "/tenants/:tenantId/documents/:id/download-url",
+    async (request, reply) => {
+      const { tenantId, id } = request.params;
+      assertTenantAccess(request.auth!, tenantId);
+      return withTenant(tenantId, async (client) => {
+        const { rows } = await client.query(
+          `SELECT s3_key FROM documents WHERE id = $1 AND tenant_id = $2`,
+          [id, tenantId]
+        );
+        if (rows.length === 0) return reply.code(404).send({ error: "Document not found" });
+        const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+        const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+        const command = new GetObjectCommand({ Bucket: DOCUMENTS_BUCKET, Key: rows[0].s3_key });
+        const downloadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+        return { downloadUrl };
+      });
+    }
+  );
+
+  app.get<{ Params: { tenantId: string; id: string } }>(
+    "/tenants/:tenantId/documents/:id/extracted-fields",
+    async (request, reply) => {
+      const { tenantId, id } = request.params;
+      assertTenantAccess(request.auth!, tenantId);
+      return withTenant(tenantId, async (client) => {
+        const { rows } = await client.query(
+          `SELECT fs.id, cf.field_key, fs.raw_value, fs.confidence, fs.reasoning,
+                  cf.resolved_value, cf.status as field_status
+           FROM ctdm_field_sources fs
+           JOIN ctdm_fields cf ON cf.id = fs.ctdm_field_id
+           WHERE fs.document_id = $1 AND cf.tenant_id = $2
+           ORDER BY fs.confidence DESC`,
+          [id, tenantId]
+        );
+        return rows;
+      });
+    }
+  );
 }

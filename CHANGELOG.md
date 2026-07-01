@@ -443,3 +443,9 @@ Backend untuk full menu UI:
   yang tidak bergantung ke StorageStack/ComputeStack.
 - Compute Stack v31 = v30 (fix checksum S3 presigned URL) tanpa kode
   CDK behavior CloudFront -- lebih bersih.
+
+## v32 - 2026-07-01
+- Tambah endpoint IDP Studio: GET /documents/:id (detail),
+  GET /documents/:id/download-url (presigned GET untuk PDF viewer),
+  GET /documents/:id/extracted-fields (field CTDM yang diekstrak dari
+  dokumen spesifik ini, untuk panel kanan IDP Studio)
