@@ -19,6 +19,7 @@ interface DryRunEvent {
 const PROTECTED_CATEGORIES = new Set(['COMMERCIAL', 'TRANSPORT', 'CUSTOMS']);
 
 export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userId }) => {
+  console.log('[DryRunAnalyze] START', { sessionId, tenantId });
   const pool = await getPool();
   const client = await pool.connect();
 
@@ -32,6 +33,7 @@ export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userI
        FROM upload_session_files WHERE session_id = $1`,
       [sessionId]
     );
+    console.log('[DryRunAnalyze] files:', files.length);
 
     const results = {
       autoAttach: [] as any[], suggest: [] as any[],
