@@ -8,6 +8,9 @@ import { emailIntakeRoutes } from "./routes/emailIntake.js";
 import { uploadSessionRoutes } from "./routes/uploadSession.js";
 import { adminConfigRoutes } from "./routes/admin/config.js";
 import { ceisaSubmitRoutes } from "./routes/ceisaSubmit.js";
+import { ceisaReadinessRoutes } from "./routes/ceisaReadiness.js";
+import { aiChatRoutes } from "./routes/aiChat.js";
+import { reportRoutes } from "./routes/reports.js";
 
 const app = Fastify({ logger: true });
 
@@ -32,6 +35,9 @@ await app.register(emailIntakeRoutes, { prefix: "/api/v1" });
 await app.register(uploadSessionRoutes, { prefix: "/api/v1" });
 await app.register(adminConfigRoutes, { prefix: "/api/v1" });
 await app.register(ceisaSubmitRoutes, { prefix: "/api/v1" });
+await app.register(ceisaReadinessRoutes, { prefix: "/api/v1" });
+await app.register(aiChatRoutes, { prefix: "/api/v1" });
+await app.register(reportRoutes, { prefix: "/api/v1" });
 
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: "0.0.0.0" }).catch((err) => {

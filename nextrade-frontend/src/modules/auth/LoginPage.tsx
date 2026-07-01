@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../lib/AuthContext";
@@ -6,7 +6,12 @@ import { useAuth } from "../../lib/AuthContext";
 export function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { login, completeNewPassword } = useAuth();
+  const { login, completeNewPassword, claims, isLoading } = useAuth();
+
+  // Already authenticated — go to dashboard
+  useEffect(() => {
+    if (!isLoading && claims) navigate("/", { replace: true });
+  }, [isLoading, claims, navigate]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

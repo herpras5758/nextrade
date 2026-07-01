@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Upload, CheckCircle, BarChart2, FileCheck, FileText, Send,
   Loader, Sparkles, X, ArrowRight, ChevronRight,
@@ -27,6 +28,7 @@ interface StagedFile {
 export function UploadWorkflowPage() {
   const { claims } = useAuth();
   const { currentTenant } = useTenant();
+  const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -121,8 +123,12 @@ export function UploadWorkflowPage() {
     if (!currentTenant || !sessionId) return;
     setIsCommitting(true);
     try {
-      await apiClient.post(`/tenants/${currentTenant.id}/upload-sessions/${sessionId}/commit`);
-      setStep(4);
+      const { data } = await apiClient.post(`/tenants/${currentTenant.id}/upload-sessions/${sessionId}/commit`);
+      if (data.shipmentId) {
+        navigate(`/bc23/${data.shipmentId}`);
+      } else {
+        setStep(4);
+      }
     } catch (e) {
       console.error("Commit failed", e);
     } finally {

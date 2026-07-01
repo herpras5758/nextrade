@@ -4,97 +4,92 @@
 
 @layer base {
   html { font-family: theme("fontFamily.sans"); -webkit-font-smoothing: antialiased; }
-  body { @apply bg-surface-page text-surface-text; }
+  body { @apply bg-[#F4F5F7] text-[#1B2A4A]; }
 
-  /* RTL readiness — Addendum D, PROJECT_RULES.md */
-  [dir="rtl"] .ltr-only-icon { transform: scaleX(-1); }
+  /* RTL readiness — Addendum D */
+  [dir="rtl"] .ltr-only { transform: scaleX(-1); }
 
-  /* Focus ring — accessibility floor */
-  :focus-visible { outline: 2px solid theme("colors.intel.500"); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid #0EA5A4; outline-offset: 2px; }
 
-  /* Scrollbar — subtle enterprise style */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: theme("colors.surface.border"); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: theme("colors.surface.muted"); }
-
-  /* Page heading hierarchy */
-  .page-title { @apply text-lg font-semibold text-surface-text tracking-tight; }
-  .page-subtitle { @apply text-sm text-surface-muted mt-0.5; }
-  .section-title { @apply text-sm font-semibold text-surface-text; }
-
-  /* Data identifiers — doc numbers, BC codes, container numbers */
-  .data-id { @apply font-mono text-xs tracking-tight text-surface-text; }
+  ::-webkit-scrollbar-thumb { background: #DFE1E6; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #6B778C; }
 }
 
 @layer components {
-  /* AI-touched indicator — teal badge, used exclusively for AI output */
-  .ai-badge {
-    @apply inline-flex items-center gap-1 rounded-full bg-intel-50 px-2 py-0.5 text-2xs font-medium text-intel-500 ring-1 ring-inset ring-intel-100;
-  }
+  /* ── Typography ── */
+  .page-title    { @apply text-lg font-semibold text-[#1B2A4A] tracking-tight; }
+  .page-subtitle { @apply text-sm text-[#6B778C] mt-0.5; }
+  .section-title { @apply text-sm font-semibold text-[#1B2A4A]; }
+  .data-id       { @apply font-mono text-xs tracking-tight text-[#1B2A4A]; }
 
-  /* Enterprise status badges */
-  .badge { @apply inline-flex items-center rounded px-2 py-0.5 text-2xs font-medium; }
-  .badge-success { @apply badge bg-success-100 text-success-600; }
-  .badge-warning { @apply badge bg-warning-100 text-warning-600; }
-  .badge-danger { @apply badge bg-danger-100 text-danger-600; }
-  .badge-neutral { @apply badge bg-surface-page text-surface-muted; }
-  .badge-intel { @apply badge bg-intel-50 text-intel-500; }
+  /* ── Cards ── */
+  .card        { @apply rounded border border-[#DFE1E6] bg-white shadow-sm; }
+  .card-header { @apply flex items-center justify-between border-b border-[#DFE1E6] px-4 py-3; }
+  .card-body   { @apply p-4; }
 
-  /* Card — standard raised card */
-  .card {
-    @apply rounded-md border border-surface-border bg-white shadow-card;
-  }
-  .card-header {
-    @apply flex items-center justify-between border-b border-surface-border px-4 py-3;
-  }
-  .card-body {
-    @apply p-4;
-  }
+  /* ── KPI ── */
+  .kpi-card  { @apply rounded border border-[#DFE1E6] bg-white p-4 shadow-sm; }
+  .kpi-label { @apply text-[10px] font-semibold uppercase tracking-wider text-[#6B778C]; }
+  .kpi-value { @apply mt-1.5 font-mono text-2xl font-bold text-[#1B2A4A]; }
+  .kpi-delta { @apply mt-1 flex items-center gap-1 text-xs; }
 
-  /* Page layout wrapper */
-  .page-container {
-    @apply mx-auto max-w-6xl;
-  }
+  /* ── Buttons ── */
+  .btn-primary   { @apply inline-flex items-center gap-1.5 rounded bg-[#1B2A4A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#101828] transition-colors; }
+  .btn-ai        { @apply inline-flex items-center gap-1.5 rounded bg-[#0EA5A4] px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-600 transition-colors; }
+  .btn-secondary { @apply inline-flex items-center gap-1.5 rounded border border-[#DFE1E6] bg-white px-3 py-1.5 text-xs font-medium text-[#1B2A4A] hover:bg-[#F4F5F7] transition-colors; }
+  .btn-danger    { @apply inline-flex items-center gap-1.5 rounded border border-[#FF5630] px-3 py-1.5 text-xs font-medium text-[#FF5630] hover:bg-red-50 transition-colors; }
 
-  /* Enterprise button variants */
-  .btn-primary {
-    @apply inline-flex items-center gap-1.5 rounded-md bg-intel-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-intel-400 transition-colors;
-  }
-  .btn-secondary {
-    @apply inline-flex items-center gap-1.5 rounded-md border border-surface-border bg-white px-3 py-1.5 text-xs font-medium text-surface-text hover:bg-surface-page transition-colors;
-  }
-  .btn-danger {
-    @apply inline-flex items-center gap-1.5 rounded-md border border-danger-600 px-3 py-1.5 text-xs font-medium text-danger-600 hover:bg-danger-100 transition-colors;
-  }
+  /* ── Inputs ── */
+  .input       { @apply w-full rounded border border-[#DFE1E6] bg-white px-3 py-1.5 text-sm text-[#1B2A4A] outline-none transition-colors placeholder:text-[#6B778C] focus:border-[#0EA5A4] focus:ring-1 focus:ring-[#0EA5A4]; }
+  .input-label { @apply block text-xs font-medium text-[#1B2A4A] mb-1; }
 
-  /* Form inputs */
-  .input {
-    @apply w-full rounded-md border border-surface-border bg-white px-3 py-1.5 text-sm text-surface-text outline-none transition-colors placeholder:text-surface-muted focus:border-intel-500 focus:ring-1 focus:ring-intel-500;
-  }
-  .input-label {
-    @apply block text-xs font-medium text-surface-text mb-1;
-  }
+  /* ── Badges ── */
+  .badge         { @apply inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold; }
+  .badge-success { @apply badge bg-[#E3FCEF] text-[#006644]; }
+  .badge-warning { @apply badge bg-[#FFFAE6] text-[#974F0C]; }
+  .badge-danger  { @apply badge bg-[#FFEBE6] text-[#BF2600]; }
+  .badge-neutral { @apply badge bg-[#F4F5F7] text-[#6B778C]; }
+  .badge-navy    { @apply badge bg-[#1B2A4A] text-white; }
+  .badge-ai      { @apply badge bg-teal-50 text-[#0EA5A4] ring-1 ring-inset ring-teal-100; }
+  .badge-blue    { @apply badge bg-blue-50 text-blue-700; }
 
-  /* KPI stat card — Salesforce Lightning style */
-  .kpi-card {
-    @apply rounded-md border border-surface-border bg-white p-4 shadow-card;
-  }
-  .kpi-label {
-    @apply text-2xs font-semibold uppercase tracking-wider text-surface-muted;
-  }
-  .kpi-value {
-    @apply mt-1.5 font-mono text-2xl font-semibold text-surface-text;
-  }
-  .kpi-delta {
-    @apply mt-1 flex items-center gap-1 text-2xs;
-  }
+  /* ── AI elements ── */
+  .ai-badge { @apply inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-[#0EA5A4] ring-1 ring-inset ring-teal-100; }
+  .ai-panel { @apply rounded border border-teal-100 bg-teal-50 p-3; }
+
+  /* ── Confidence bars ── */
+  .conf-bar-wrap { @apply flex items-center gap-2; }
+  .conf-bar-bg   { @apply h-1.5 flex-1 rounded-full overflow-hidden bg-[#F4F5F7]; }
+
+  /* ── Tables (Jira dense) ── */
+  .table-enterprise { @apply w-full border-collapse text-xs; }
+  .table-enterprise thead tr { @apply bg-[#F4F5F7] border-b border-[#DFE1E6]; }
+  .table-enterprise thead th { @apply px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#6B778C]; }
+  .table-enterprise tbody tr { @apply border-b border-[#DFE1E6] transition-colors hover:bg-[#F8F9FA]; }
+  .table-enterprise tbody tr:nth-child(even) { @apply bg-[#FAFBFC]; }
+  .table-enterprise tbody td { @apply px-3 py-2 text-[#1B2A4A]; }
+
+  /* ── Tabs ── */
+  .tab-bar  { @apply flex border-b border-[#DFE1E6] bg-white; }
+  .tab-item { @apply px-4 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer; }
+  .tab-item-active   { @apply border-[#0EA5A4] text-[#0EA5A4]; }
+  .tab-item-inactive { @apply border-transparent text-[#6B778C] hover:text-[#1B2A4A] hover:border-[#DFE1E6]; }
+
+  /* ── Checkpoint items ── */
+  .checkpoint-pass { @apply flex items-start gap-3 rounded border border-[#ABF5D1] bg-[#E3FCEF] px-3 py-2.5; }
+  .checkpoint-warn { @apply flex items-start gap-3 rounded border border-[#FFE380] bg-[#FFFAE6] px-3 py-2.5; }
+  .checkpoint-fail { @apply flex items-start gap-3 rounded border border-[#FFBDAD] bg-[#FFEBE6] px-3 py-2.5; }
+  .checkpoint-na   { @apply flex items-start gap-3 rounded border border-[#DFE1E6] bg-[#F4F5F7] px-3 py-2.5; }
+
+  /* ── Page layout ── */
+  .page-container { @apply mx-auto max-w-7xl; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

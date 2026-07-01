@@ -9,9 +9,12 @@ export function setAuthTokenGetter(fn: () => string | null) {
   getToken = fn;
 }
 
+// Fallback: read Cognito token directly from localStorage if getter not set yet
 function readCognitoToken(): string | null {
   try {
+    const poolId = ENV.cognitoUserPoolId;
     const clientId = ENV.cognitoClientId;
+    // Cognito stores tokens as CognitoIdentityServiceProvider.{clientId}.{username}.idToken
     const lastUserKey = `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`;
     const username = localStorage.getItem(lastUserKey);
     if (!username) return null;
@@ -23,6 +26,7 @@ function readCognitoToken(): string | null {
 }
 
 apiClient.interceptors.request.use((config) => {
+  // Try registered getter first, fall back to direct localStorage read
   const token = getToken?.() ?? readCognitoToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;

@@ -47,7 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [pendingCognitoUser, setPendingCognitoUser] = useState<CognitoUser | null>(null);
 
-  useEffect(() => { setAuthTokenGetter(() => idToken); }, [idToken]);
+  // Register token getter once — apiClient interceptor calls this to get
+  // the current Bearer token for every outbound request.
+  useEffect(() => {
+    setAuthTokenGetter(() => idToken);
+  }, [idToken]);
 
   useEffect(() => {
     const currentUser = userPool.getCurrentUser();

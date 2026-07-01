@@ -8,13 +8,22 @@ import { DocumentsPage } from "./modules/documents/DocumentsPage";
 import { IdpStudioPage } from "./modules/idp-studio/IdpStudioPage";
 import { ReviewQueuePage } from "./modules/review-queue/ReviewQueuePage";
 import { Bc23WorkflowPage } from "./modules/bc23/Bc23WorkflowPage";
+import { Bc23ShipmentDetail } from "./modules/bc23/Bc23ShipmentDetail";
 import { AdminPanel } from "./modules/settings/AdminPanel";
 import { UploadWorkflowPage } from "./modules/upload-workflow/UploadWorkflowPage";
+import { ReportBuilderPage } from "./modules/reports/ReportBuilderPage";
 import { ComingSoonPage } from "./components/layout/ComingSoonPage";
 import { EvidenceTimeline } from "./components/ui/EvidenceTimeline";
 
 function Loading() {
-  return <div className="flex h-screen items-center justify-center text-surface-muted text-sm">Memuat...</div>;
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="flex items-center gap-2 text-sm text-[#6B778C]">
+        <div className="h-4 w-4 rounded-full border-2 border-[#0EA5A4] border-t-transparent animate-spin" />
+        Memuat...
+      </div>
+    </div>
+  );
 }
 
 function EvidenceTimelinePage() {
@@ -24,7 +33,7 @@ function EvidenceTimelinePage() {
     <div className="page-container">
       <div className="mb-5">
         <h1 className="page-title">Evidence Timeline</h1>
-        <p className="page-subtitle">Riwayat kronologis semua kejadian</p>
+        <p className="page-subtitle">Riwayat kronologis semua kejadian — sumber kebenaran audit</p>
       </div>
       <div className="card p-4">
         <EvidenceTimeline entityId={entityId} limit={100} />
@@ -55,9 +64,10 @@ export default function App() {
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/idp-studio/:id" element={<IdpStudioPage />} />
             <Route path="/bc23" element={<Bc23WorkflowPage />} />
-            <Route path="/bc23/:shipmentId" element={<Bc23WorkflowPage />} />
+            <Route path="/bc23/:shipmentId" element={<Bc23ShipmentDetail />} />
             <Route path="/review-queue" element={<ReviewQueuePage />} />
             <Route path="/settings" element={<AdminPanel />} />
+            <Route path="/analytics" element={<ReportBuilderPage />} />
             <Route path="/evidence-timeline" element={<EvidenceTimelinePage />} />
             <Route path="/audit-trail" element={<EvidenceTimelinePage />} />
             <Route path="/trade-intelligence" element={<ComingSoonPage moduleKey="tradeIntelligence" />} />
@@ -67,7 +77,6 @@ export default function App() {
             <Route path="/erp" element={<ComingSoonPage moduleKey="erp" />} />
             <Route path="/it-inventory" element={<ComingSoonPage moduleKey="itInventory" />} />
             <Route path="/email-intake" element={<ComingSoonPage moduleKey="emailIntake" />} />
-            <Route path="/analytics" element={<ComingSoonPage moduleKey="analytics" />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

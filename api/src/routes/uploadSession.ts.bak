@@ -60,7 +60,7 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
 
         const uploadUrl = await getSignedUrl(s3, new PutObjectCommand({
           Bucket: BUCKET, Key: stagingKey, ContentType: contentType,
-        }), { expiresIn: 3600, unhoistableHeaders: new Set() });
+        }), { expiresIn: 3600 });
 
         await client.query(
           `INSERT INTO upload_session_files
@@ -84,7 +84,7 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
       await lambda.send(new InvokeCommand({
         FunctionName: DRY_RUN_FN,
         InvocationType: 'Event',
-        Payload: Buffer.from(JSON.stringify({ sessionId, tenantId, userId: req.auth!.userId })),
+        Payload: JSON.stringify({ sessionId, tenantId, userId: req.auth!.userId }),
       }));
 
       await withTenant(tenantId, async (client) => {
@@ -170,7 +170,7 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
       const result = await lambda.send(new InvokeCommand({
         FunctionName: COMMIT_FN,
         InvocationType: 'RequestResponse',  // sync for commit
-        Payload: Buffer.from(JSON.stringify({ sessionId, tenantId, userId: req.auth!.userId })),
+        Payload: JSON.stringify({ sessionId, tenantId, userId: req.auth!.userId }),
       }));
 
       const response = JSON.parse(Buffer.from(result.Payload!).toString());

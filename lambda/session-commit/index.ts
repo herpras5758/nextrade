@@ -89,6 +89,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
       );
 
       committed.push(doc.id);
+      const shipmentIds: string[] = [];
 
       // 7. If matched to existing shipment, write SHIPMENT_MATCHED event and update
       if (file.matched_shipment_id && file.action !== 'NEW_SHIPMENT') {
@@ -102,6 +103,25 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
           `UPDATE documents SET shipment_id = $1 WHERE id = $2`,
           [file.matched_shipment_id, doc.id]
         );
+        if (!shipmentIds.includes(file.matched_shipment_id)) shipmentIds.push(file.matched_shipment_id);
+      }
+
+      // 7b. NEW_SHIPMENT — create shipment record
+      if (file.action === 'NEW_SHIPMENT' || !file.matched_shipment_id) {
+        const num = `SHP-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(5,'0')}`;
+        const { rows: [newShipment] } = await client.query(
+          `INSERT INTO shipments (tenant_id, shipment_number, status, health, ceisa_readiness_score)
+           VALUES ($1, $2, 'DRAFT', 'NEEDS_ATTENTION', 0) RETURNING id`,
+          [tenantId, num]
+        );
+        await client.query(`UPDATE documents SET shipment_id = $1 WHERE id = $2`, [newShipment.id, doc.id]);
+        await writer.writeEvent({
+          tenantId, eventTime: new Date(), eventType: 'SHIPMENT_CREATED',
+          producerType: 'DRY_RUN_ENGINE', producerRef: sessionId,
+          entityType: 'SHIPMENT', entityId: newShipment.id,
+          payload: { shipment_number: num, document_id: doc.id },
+        });
+        if (!shipmentIds.includes(newShipment.id)) shipmentIds.push(newShipment.id);
       }
     }
 
@@ -134,7 +154,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
       }
     }
 
-    return { success: true, committedDocuments: committed.length };
+    return { success: true, committedDocuments: committed.length, shipmentId: shipmentIds[0] ?? null };
   } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('[SessionCommit]', err.message);

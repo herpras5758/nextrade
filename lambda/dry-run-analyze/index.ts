@@ -19,7 +19,7 @@ interface DryRunEvent {
 const PROTECTED_CATEGORIES = new Set(['COMMERCIAL', 'TRANSPORT', 'CUSTOMS']);
 
 export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userId }) => {
-  console.log('[DryRunAnalyze] START', { sessionId, tenantId });
+  console.log('[DryRunAnalyze] START', { sessionId, tenantId, userId });
   const pool = await getPool();
   const client = await pool.connect();
 
@@ -33,7 +33,7 @@ export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userI
        FROM upload_session_files WHERE session_id = $1`,
       [sessionId]
     );
-    console.log('[DryRunAnalyze] files:', files.length);
+    console.log('[DryRunAnalyze] files found:', files.length);
 
     const results = {
       autoAttach: [] as any[], suggest: [] as any[],
@@ -111,7 +111,9 @@ export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userI
       canCommit: results.conflict.length === 0,
       details: results,
     };
+    console.log('[DryRunAnalyze] summary built:', JSON.stringify({ ...summary, details: undefined }));
 
+    // Write event FIRST — then UPDATE with real event id (no empty string UUID)
     const evt = await writer.writeEvent({
       tenantId, eventTime: new Date(), eventType: 'UPLOAD_SESSION_ANALYZED',
       producerType: 'DRY_RUN_ENGINE', producerRef: sessionId,
