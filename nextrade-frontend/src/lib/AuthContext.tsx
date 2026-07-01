@@ -7,6 +7,7 @@ import {
   CognitoUserSession,
 } from "amazon-cognito-identity-js";
 import { ENV } from "./env";
+import { setAuthTokenGetter } from "./apiClient";
 
 const userPool = new CognitoUserPool({
   UserPoolId: ENV.cognitoUserPoolId,
@@ -45,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [claims, setClaims] = useState<DecodedTokenClaims | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingCognitoUser, setPendingCognitoUser] = useState<CognitoUser | null>(null);
+
+  useEffect(() => { setAuthTokenGetter(() => idToken); }, [idToken]);
 
   useEffect(() => {
     const currentUser = userPool.getCurrentUser();
