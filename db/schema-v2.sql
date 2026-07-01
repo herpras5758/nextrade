@@ -491,7 +491,7 @@ INSERT INTO document_categories (code, label, affects_customs, affects_inventory
 CREATE TABLE tenant_ai_config (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id        UUID REFERENCES tenants(id) UNIQUE,
-  bedrock_model_id VARCHAR(100) DEFAULT 'anthropic.claude-sonnet-4-6',
+  bedrock_model_id VARCHAR(100) DEFAULT 'apac.anthropic.claude-sonnet-4-20250514-v1:0',
   max_tokens       INT DEFAULT 4096,
   temperature      DECIMAL(3,2) DEFAULT 0.1,
   -- Confidence thresholds (Addendum E)
@@ -503,7 +503,7 @@ CREATE TABLE tenant_ai_config (
   ceisa_api_key    TEXT,                          -- encrypted at rest
   -- Sprint 4: Extraction Engine config (Rule #4 — config-driven)
   extraction_approach    VARCHAR(30) DEFAULT 'bedrock_vision',  -- bedrock_vision | hybrid_textract | textract_only
-  extraction_model_id    VARCHAR(100) DEFAULT 'anthropic.claude-sonnet-4-6',
+  extraction_model_id    VARCHAR(100) DEFAULT 'apac.anthropic.claude-sonnet-4-20250514-v1:0',
   extraction_max_tokens  INT DEFAULT 4096,
   extraction_max_pages   INT DEFAULT 20,
   source_resolution_mode VARCHAR(30) DEFAULT 'confidence_weighted',
