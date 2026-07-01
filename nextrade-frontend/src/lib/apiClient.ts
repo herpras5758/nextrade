@@ -9,8 +9,21 @@ export function setAuthTokenGetter(fn: () => string | null) {
   getToken = fn;
 }
 
+function readCognitoToken(): string | null {
+  try {
+    const clientId = ENV.cognitoClientId;
+    const lastUserKey = `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`;
+    const username = localStorage.getItem(lastUserKey);
+    if (!username) return null;
+    const tokenKey = `CognitoIdentityServiceProvider.${clientId}.${username}.idToken`;
+    return localStorage.getItem(tokenKey);
+  } catch {
+    return null;
+  }
+}
+
 apiClient.interceptors.request.use((config) => {
-  const token = getToken?.();
+  const token = getToken?.() ?? readCognitoToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
