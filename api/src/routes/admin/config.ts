@@ -15,7 +15,7 @@ export async function adminConfigRoutes(app: FastifyInstance) {
         `SELECT * FROM tenant_ai_config WHERE tenant_id = $1`, [tenantId]
       );
       return cfg ?? {
-        bedrock_model_id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        bedrock_model_id: 'anthropic.claude-sonnet-4-6',
         max_tokens: 4096, temperature: 0.1,
         threshold_auto_approved: 0.850, threshold_recommended: 0.700,
         ceisa_mode: 'mock', ceisa_endpoint: null, ceisa_api_key: null,
