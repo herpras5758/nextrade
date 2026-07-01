@@ -21,7 +21,7 @@ export async function reportRoutes(app: FastifyInstance) {
       return withTenant(tenantId, async (client) => {
         const tenantIds: string[] = [tenantId];
         if (all_bu === 'true') {
-          const claimIds = (req.auth!.claims?.['custom:tenant_ids'] ?? '').split(',').filter(Boolean);
+          const claimIds = req.auth!.tenantIds;
           for (const tid of claimIds) if (!tenantIds.includes(tid)) tenantIds.push(tid);
         }
 
@@ -106,7 +106,7 @@ export async function reportRoutes(app: FastifyInstance) {
         // Reuse summary data
         const tenantIds: string[] = [tenantId];
         if (body.all_bu) {
-          const claimIds = (req.auth!.claims?.['custom:tenant_ids'] ?? '').split(',').filter(Boolean);
+          const claimIds = req.auth!.tenantIds;
           for (const tid of claimIds) if (!tenantIds.includes(tid)) tenantIds.push(tid);
         }
 
