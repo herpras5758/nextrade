@@ -154,7 +154,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
       }
     }
 
-    return { success: true, committedDocuments: committed.length, shipmentId: shipmentIds[0] ?? null };
+    return { success: true, committedDocuments: committed.length, shipmentIds, shipmentId: shipmentIds[0] ?? null };
   } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('[SessionCommit]', err.message);

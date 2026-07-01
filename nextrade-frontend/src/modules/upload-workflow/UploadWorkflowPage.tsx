@@ -124,7 +124,11 @@ export function UploadWorkflowPage() {
     setIsCommitting(true);
     try {
       const { data } = await apiClient.post(`/tenants/${currentTenant.id}/upload-sessions/${sessionId}/commit`);
-      if (data.shipmentId) {
+      if (data.shipmentIds && data.shipmentIds.length > 1) {
+        // Multi shipment → ke BC 2.3 list
+        navigate('/bc23');
+      } else if (data.shipmentId) {
+        // Single shipment → langsung ke shipment detail
         navigate(`/bc23/${data.shipmentId}`);
       } else {
         setStep(4);

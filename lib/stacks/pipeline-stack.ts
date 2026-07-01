@@ -221,12 +221,14 @@ export class PipelineStack extends cdk.Stack {
     const triggerFn = new lambdaNode.NodejsFunction(this, "TriggerPipelineFn", {
       functionName: "nextrade-trigger-pipeline",
       runtime: lambda.Runtime.NODEJS_20_X,
-      timeout: cdk.Duration.seconds(30),
+      timeout: cdk.Duration.seconds(120),  // Bedrock PDF extraction needs up to 2 min
+      memorySize: 512,  // PDF processing needs more memory
       entry: path.join(backendRoot, "lambda/trigger-pipeline/index.ts"),
       environment: {
         STATE_MACHINE_ARN: this.stateMachine.stateMachineArn,
-        DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
+        DOCUMENTS_BUCKET_NAME: props.documentsBucket.bucketName,
         DB_SECRET_ARN: props.dbSecretArn,
+        AWS_REGION_NAME: props.env?.region ?? 'ap-southeast-3',
       },
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
@@ -240,6 +242,15 @@ export class PipelineStack extends cdk.Stack {
         resources: [props.dbSecretArn],
       })
     );
+    // Bedrock permission for extraction
+    triggerFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      })
+    );
+    // S3 permission to read documents for extraction
+    props.documentsBucket.grantRead(triggerFn);
     // Throttle pipeline starts to a controlled rate even under bulk
     // upload bursts (hundreds of files at once) — maxConcurrency on the
     // SQS event source caps how many trigger invocations run in

@@ -10,10 +10,11 @@ import {
 } from "lucide-react";
 
 // Sections
-type Section = "ai" | "signals" | "validation" | "erp" | "learning" | "bc-access" | "ceisa";
+type Section = "ai" | "extraction" | "signals" | "validation" | "erp" | "learning" | "bc-access" | "ceisa";
 
 const NAV_ITEMS: { id: Section; label: string; icon: typeof Cpu; description: string }[] = [
   { id: "ai",         label: "AI Engine",            icon: Cpu,       description: "Model, threshold confidence, mode CEISA" },
+  { id: "extraction", label: "Extraction Engine",    icon: Cpu,       description: "Approach, model OCR, Bedrock config" },
   { id: "ceisa",      label: "CEISA Config",          icon: FileCheck, description: "Mode mock/live, endpoint, API key" },
   { id: "signals",    label: "Identity Signals",      icon: Scale,     description: "Bobot sinyal, confidence tier, normalizer" },
   { id: "validation", label: "Validation Rules",      icon: FileCheck, description: "Aturan bisnis per field, per BC type" },
@@ -116,6 +117,7 @@ export function AdminPanel() {
         {/* Content */}
         <div className="flex-1 min-w-0">
           {section === "ai"         && <AiSection tenantId={currentTenant?.id ?? ""} />}
+          {section === "extraction" && <ExtractionSection tenantId={currentTenant?.id ?? ""} />}
           {section === "ceisa"      && <CeisaSection tenantId={currentTenant?.id ?? ""} />}
           {section === "signals"    && <SignalWeightsSection tenantId={currentTenant?.id ?? ""} />}
           {section === "validation" && <ValidationRulesSection tenantId={currentTenant?.id ?? ""} />}
@@ -612,6 +614,160 @@ function BcAccessSection({ tenantId }: { tenantId: string }) {
             </div>
           );
         })}
+      </div>
+    </SectionCard>
+  );
+}
+
+// ── Extraction Engine Section ─────────────────────────────────────────────────
+function ExtractionSection({ tenantId }: { tenantId: string }) {
+  const [config, setConfig] = useState({
+    extraction_approach: 'bedrock_vision',
+    extraction_model_id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    extraction_max_tokens: 4096,
+    extraction_max_pages: 20,
+    source_resolution_mode: 'confidence_weighted',
+    conflict_auto_resolve_threshold: 0.90,
+    identity_signals_active: ['INVOICE_NUMBER','BL_NUMBER','PO_NUMBER','CONTAINER_NUMBER'],
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    apiClient.get(`/tenants/${tenantId}/admin/ai-config`).then(r => {
+      if (r.data) setConfig(prev => ({ ...prev, ...r.data }));
+    }).catch(() => {});
+  }, [tenantId]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await apiClient.put(`/tenants/${tenantId}/admin/ai-config`, config);
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } finally { setSaving(false); }
+  }
+
+  const APPROACHES = [
+    { value: 'bedrock_vision', label: 'Bedrock Vision', desc: 'PDF → Claude Sonnet langsung. Akurat, tanpa dependensi Textract.' },
+    { value: 'hybrid_textract', label: 'Hybrid Textract + Bedrock', desc: 'Textract OCR → Claude analisis. Lebih cepat untuk dokumen volume tinggi. (Butuh Textract di region)' },
+    { value: 'textract_only', label: 'Textract Only', desc: 'Hanya OCR tanpa AI analisis. Cepat, confidence rendah.' },
+  ];
+
+  const MODELS = [
+    { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2 (Recommended — akurasi tertinggi)' },
+    { value: 'anthropic.claude-3-5-haiku-20241022-v1:0',  label: 'Claude 3.5 Haiku (Lebih cepat, biaya lebih rendah)' },
+    { value: 'anthropic.claude-3-opus-20240229-v1:0',     label: 'Claude 3 Opus (Dokumen sangat kompleks)' },
+  ];
+
+  const ALL_SIGNALS = ['INVOICE_NUMBER','BL_NUMBER','PO_NUMBER','CONTAINER_NUMBER','BC_NUMBER','BC11_NUMBER','SUPPLIER_NAME'];
+
+  return (
+    <SectionCard title="Extraction Engine" description="Konfigurasi OCR + field extraction AI. Semua perubahan berlaku tanpa redeploy.">
+      <div className="space-y-5">
+        {/* Approach */}
+        <div>
+          <label className="input-label mb-2 block">Extraction Approach</label>
+          <div className="space-y-2">
+            {APPROACHES.map(a => (
+              <label key={a.value} className={`flex items-start gap-3 rounded border p-3 cursor-pointer transition-colors ${config.extraction_approach === a.value ? 'border-[#0EA5A4] bg-teal-50' : 'border-[#DFE1E6] hover:bg-[#F4F5F7]'}`}>
+                <input type="radio" name="approach" value={a.value}
+                  checked={config.extraction_approach === a.value}
+                  onChange={e => setConfig(prev => ({ ...prev, extraction_approach: e.target.value }))}
+                  className="mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-[#1B2A4A]">{a.label}</p>
+                  <p className="text-[11px] text-[#6B778C] mt-0.5">{a.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Model */}
+        <div>
+          <label className="input-label">Extraction Model</label>
+          <select value={config.extraction_model_id}
+            onChange={e => setConfig(prev => ({ ...prev, extraction_model_id: e.target.value }))}
+            className="input text-xs">
+            {MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </div>
+
+        {/* Max tokens + pages */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="input-label">Max Tokens per Extraction</label>
+            <input type="number" value={config.extraction_max_tokens} min={1024} max={8192} step={512}
+              onChange={e => setConfig(prev => ({ ...prev, extraction_max_tokens: parseInt(e.target.value) }))}
+              className="input text-xs" />
+            <p className="text-[11px] text-[#6B778C] mt-1">Lebih tinggi = lebih akurat, lebih mahal</p>
+          </div>
+          <div>
+            <label className="input-label">Max Halaman per Dokumen</label>
+            <input type="number" value={config.extraction_max_pages} min={1} max={50}
+              onChange={e => setConfig(prev => ({ ...prev, extraction_max_pages: parseInt(e.target.value) }))}
+              className="input text-xs" />
+          </div>
+        </div>
+
+        {/* Source Resolution */}
+        <div>
+          <label className="input-label">Source Resolution Mode</label>
+          <select value={config.source_resolution_mode}
+            onChange={e => setConfig(prev => ({ ...prev, source_resolution_mode: e.target.value }))}
+            className="input text-xs">
+            <option value="confidence_weighted">Confidence Weighted (direkomendasikan)</option>
+            <option value="first_found">First Found (ambil sumber pertama)</option>
+            <option value="manual_only">Manual Only (semua konflik ke user)</option>
+          </select>
+        </div>
+
+        {/* Conflict threshold */}
+        <div>
+          <label className="input-label">
+            Auto-resolve Conflict Threshold: {Math.round(config.conflict_auto_resolve_threshold * 100)}%
+          </label>
+          <input type="range" min={0.70} max={1.00} step={0.01}
+            value={config.conflict_auto_resolve_threshold}
+            onChange={e => setConfig(prev => ({ ...prev, conflict_auto_resolve_threshold: parseFloat(e.target.value) }))}
+            className="w-full accent-teal-500" />
+          <div className="flex justify-between text-[10px] text-[#6B778C]">
+            <span>70% — lebih banyak auto-resolve</span>
+            <span>100% — semua ke manual</span>
+          </div>
+        </div>
+
+        {/* Identity signals */}
+        <div>
+          <label className="input-label mb-2 block">Identity Signals Aktif</label>
+          <div className="flex flex-wrap gap-2">
+            {ALL_SIGNALS.map(sig => {
+              const active = config.identity_signals_active.includes(sig);
+              return (
+                <button key={sig} onClick={() => {
+                  setConfig(prev => ({
+                    ...prev,
+                    identity_signals_active: active
+                      ? prev.identity_signals_active.filter(s => s !== sig)
+                      : [...prev.identity_signals_active, sig],
+                  }));
+                }}
+                  className={`badge text-[11px] ${active ? 'badge-ai cursor-pointer' : 'badge-neutral cursor-pointer opacity-50'}`}>
+                  {sig}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-[#6B778C] mt-1">Signal aktif dipakai Identity Engine untuk grouping shipment</p>
+        </div>
+
+        <div className="ai-panel text-xs">
+          <strong>Konfigurasi aktif:</strong> {config.extraction_approach} · {config.extraction_model_id.split('.')[1]} · max {config.extraction_max_tokens} tokens
+        </div>
+
+        <button onClick={save} disabled={saving} className="btn-primary gap-1">
+          {saved ? '✅ Tersimpan' : saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+        </button>
       </div>
     </SectionCard>
   );
