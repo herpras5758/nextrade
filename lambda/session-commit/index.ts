@@ -127,7 +127,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
         await lambda.send(new InvokeCommand({
           FunctionName: TRIGGER_FN,
           InvocationType: 'Event',  // async
-          Payload: JSON.stringify({ documentId: docId, tenantId }),
+          Payload: Buffer.from(JSON.stringify({ documentId: docId, tenantId })),
         }));
       } catch (e) {
         console.warn('[SessionCommit] pipeline trigger failed for', docId, e);
