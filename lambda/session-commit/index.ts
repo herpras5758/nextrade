@@ -142,6 +142,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
     await client.query('COMMIT');
 
     // 9. Trigger pipeline for each committed document (async, post-commit)
+    console.log('[SessionCommit] triggering pipeline for', committed.length, 'docs, TRIGGER_FN:', process.env.TRIGGER_PIPELINE_FUNCTION_NAME);
     for (const docId of committed) {
       try {
         await lambda.send(new InvokeCommand({
@@ -150,7 +151,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
           Payload: Buffer.from(JSON.stringify({ documentId: docId, tenantId })),
         }));
       } catch (e) {
-        console.warn('[SessionCommit] pipeline trigger failed for', docId, e);
+        console.error('[SessionCommit] pipeline trigger FAILED for', docId, JSON.stringify(e));
       }
     }
 
