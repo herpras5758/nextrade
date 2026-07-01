@@ -20,7 +20,7 @@ interface ComputeStackProps extends cdk.StackProps {
   documentsBucketName: string;
   userPoolId: string;
   userPoolClientId: string;
-  distribution: cloudfront.Distribution; // from StorageStack — used to add the /api/* proxy behavior
+  // NOTE: CloudFront /api/* behavior is managed outside CDK — see comment in constructor
 }
 
 export class ComputeStack extends cdk.Stack {
@@ -98,28 +98,16 @@ export class ComputeStack extends cdk.Stack {
       scaleOutCooldown: cdk.Duration.seconds(60),
     });
 
-    // CloudFront /api/* proxy behavior — fixes mixed content blocking.
-    // The frontend is served over HTTPS via CloudFront; the ALB only
-    // has an HTTP listener (no custom domain/ACM cert yet, see
-    // compute-stack.ts HTTP/HTTPS note above). Browsers silently block
-    // HTTPS pages from calling HTTP XHR endpoints — this surfaced as
-    // "upload tidak ada respon" with no visible error until DevTools
-    // Console was checked. Routing /api/* through CloudFront means the
-    // browser only ever talks HTTPS to CloudFront; CloudFront-to-ALB is
-    // server-to-server traffic, where HTTP is fine. No domain or ACM
-    // certificate needed to fix this.
-    props.distribution.addBehavior(
-      "/api/*",
-      new origins.LoadBalancerV2Origin(this.service.loadBalancer, {
-        protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-      }),
-      {
-        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED, // API responses are per-user/per-tenant, never cache
-        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER, // forwards Authorization header, query strings, body
-      }
-    );
+    // NOTE: CloudFront /api/* behavior is managed OUTSIDE CDK (added
+    // manually via `aws cloudfront update-distribution` CLI) to avoid a
+    // circular stack dependency: StorageStack already depends on
+    // ComputeStack via ALB DNS name for its CloudFront origin, so
+    // ComputeStack cannot also depend on StorageStack's Distribution
+    // object or ID without creating a cycle CDK rejects at synth time.
+    // The behavior is already live in the distribution (verified working).
+    // Any future updates to it must go through CLI or a separate
+    // standalone stack that depends on neither StorageStack nor
+    // ComputeStack.
 
     new cdk.CfnOutput(this, "ApiUrl", { value: `https://${this.service.loadBalancer.loadBalancerDnsName}` });
   }

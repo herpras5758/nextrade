@@ -431,3 +431,15 @@ Backend untuk full menu UI:
   browser fetch tidak bisa menghitung dan mengirim checksum yang cocok
   -> S3 reject 403. Fix: disable checksum algorithm di PutObjectCommand
   dan unhoist header checksum dari presigned URL.
+
+## v31 - 2026-07-01
+- FIX: Hapus CloudFront /api/* behavior dari CDK sepenuhnya -- membuat
+  DependencyCycle error saat synth (StorageStack sudah depend ke
+  ComputeStack via ALB DNS untuk CloudFront origin, jadi ComputeStack
+  tidak bisa balik depend ke StorageStack).
+- Behavior /api/* SUDAH diapply manual lewat CLI (v29, aws cloudfront
+  update-distribution) dan sudah BERFUNGSI -- tidak perlu dikelola CDK.
+  Future changes ke behavior ini harus lewat CLI atau standalone stack
+  yang tidak bergantung ke StorageStack/ComputeStack.
+- Compute Stack v31 = v30 (fix checksum S3 presigned URL) tanpa kode
+  CDK behavior CloudFront -- lebih bersih.
