@@ -192,9 +192,11 @@ function AiSection({ tenantId }: { tenantId: string }) {
           <label className="input-label">Model ID</label>
             <select className="input text-xs" value={cfg.bedrock_model_id}
               onChange={e => { setCfg({ ...cfg, bedrock_model_id: e.target.value }); setSaved(false); }}>
-              <option value="anthropic.claude-sonnet-4-6">Claude 3.5 Sonnet v2 (Recommended)</option>
-              <option value="anthropic.claude-haiku-4-5-20251001-v1:0">Claude 3.5 Haiku (Faster, cheaper)</option>
-              <option value="anthropic.claude-opus-4-6-v1">Claude 3 Opus (Most capable)</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6 — Anthropic direct</option>
+              <option value="anthropic.claude-sonnet-4-6">Claude Sonnet 4.6 — Bedrock</option>
+              <option value="claude-haiku-4-5">Claude Haiku 4.5 — Anthropic direct</option>
+              <option value="anthropic.claude-haiku-4-5-20251001-v1:0">Claude Haiku 4.5 — Bedrock</option>
+              <option value="claude-opus-4-6">Claude Opus 4.6 — Anthropic direct</option>
             </select>
           </div>
           <div>
