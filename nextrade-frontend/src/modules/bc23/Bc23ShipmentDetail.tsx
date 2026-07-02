@@ -377,7 +377,7 @@ export function Bc23ShipmentDetail() {
                 </div>
 
                 <div className="space-y-2">
-                  {readiness.checkpoints.map(cp => (
+                  {readiness.checkpoints.map((cp: any) => (
                     <CheckpointItem key={cp.id} cp={cp} />
                   ))}
                 </div>
