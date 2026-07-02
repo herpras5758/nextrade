@@ -233,7 +233,7 @@ export class PipelineStack extends cdk.Stack {
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [props.dbSecurityGroup],
-      bundling: { externalModules: ["@aws-sdk/*"], nodeModules: ["pg", "pdf-lib"] },
+      bundling: { externalModules: ["@aws-sdk/*"] },
     });
     this.stateMachine.grantStartExecution(triggerFn);
     triggerFn.addToRolePolicy(
@@ -305,7 +305,7 @@ export class PipelineStack extends cdk.Stack {
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [props.dbSecurityGroup],
-      bundling: { externalModules: ["@aws-sdk/*"], nodeModules: ["pg", "pdf-lib"] },
+      bundling: { externalModules: ["@aws-sdk/*"] },
       environment: {
         DB_SECRET_ARN: props.dbSecretArn,
         DOCUMENTS_BUCKET_NAME: props.documentsBucket.bucketName,
