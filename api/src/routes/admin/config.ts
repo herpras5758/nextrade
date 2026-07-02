@@ -307,7 +307,6 @@ export async function adminConfigRoutes(app: FastifyInstance) {
       return rows;
     });
   });
-}
 
   // GET tenant config
   app.get('/tenants/:tenantId/config', async (req, reply) => {
@@ -335,3 +334,4 @@ export async function adminConfigRoutes(app: FastifyInstance) {
       return { config: tenant?.config ?? {} };
     });
   });
+}
