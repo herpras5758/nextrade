@@ -1,10 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { AuthProvider } from './lib/AuthContext';
+import { TenantProvider } from './store/tenantContext';
+import './i18n';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <TenantProvider>
+        <App />
+      </TenantProvider>
+    </AuthProvider>
   </React.StrictMode>
 );
-// Thu Jul  2 06:59:20 PM UTC 2026
