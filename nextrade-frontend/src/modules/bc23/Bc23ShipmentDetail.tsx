@@ -445,7 +445,7 @@ export function Bc23ShipmentDetail() {
         {/* ── CEISA SUBMIT ── */}
         {tab === 'ceisa' && (
           <div className="p-4">
-            {(readiness?.overallStatus === 'NOT_READY' || readiness?.overallStatus === 'NEEDS_ATTENTION') && (
+            {(!readiness?.overallStatus || readiness?.overallStatus === 'NOT_READY' || readiness?.overallStatus === 'NEEDS_ATTENTION') && (
               <div className="checkpoint-fail mb-4">
                 <XCircle size={16} className="text-[#FF5630] flex-shrink-0" />
                 <div>
@@ -461,7 +461,7 @@ export function Bc23ShipmentDetail() {
               </div>
             )}
 
-            {(readiness?.overallStatus === 'READY' || readiness?.overallStatus === 'NEARLY_READY') && !ceisaResult && (
+            {readiness?.score >= 70 && !ceisaResult && (
               <div className="checkpoint-pass mb-4">
                 <CheckCircle size={16} className="text-[#36B37E] flex-shrink-0" />
                 <div>
