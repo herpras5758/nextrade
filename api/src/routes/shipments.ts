@@ -296,11 +296,11 @@ export async function shipmentRoutes(app: FastifyInstance) {
         // Currency
         valuta: f.currency ?? 'USD',
         kurs_ndpbm: f.kurs ?? '',
-        // Completeness flags
-        _missing_fields: Object.entries(bc23)
-          .filter(([k, v]) => !k.startsWith('_') && !v)
-          .map(([k]) => k),
       };
+      // Completeness flags
+      bc23._missing_fields = Object.entries(bc23)
+        .filter(([k, v]) => !k.startsWith('_') && !v)
+        .map(([k]) => k);
 
       // Save draft
       await client.query(
