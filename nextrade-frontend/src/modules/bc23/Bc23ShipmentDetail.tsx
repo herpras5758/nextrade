@@ -109,7 +109,7 @@ export function Bc23ShipmentDetail() {
   const [shipment, setShipment]   = useState<Shipment | null>(null);
   const [docs, setDocs]           = useState<Document[]>([]);
   const [fields, setFields]       = useState<CtdmField[]>([]);
-  const [readiness, setReadiness] = useState<any>(null);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [ceisaResult, setCeisaResult] = useState<any>(null);
   const [draft, setDraft]             = useState<any>(null);
   const [loadingDraft, setLoadingDraft] = useState(false);
@@ -121,7 +121,7 @@ export function Bc23ShipmentDetail() {
     try {
       const [sRes, dRes, fRes, rRes] = await Promise.all([
         apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}`),
-        apiClient.get(`/tenants/${currentTenant.id}/documents?shipment_id=${shipmentId}`),
+        apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}/documents`),
         apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}/fields`).catch(() => ({ data: { allFields: [], totalFields: 0 } })),
         apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}/ceisa-readiness`).catch(() => ({ data: null })),
       ]);
@@ -377,7 +377,7 @@ export function Bc23ShipmentDetail() {
                 </div>
 
                 <div className="space-y-2">
-                  {readiness.checkpoints.map((cp: any) => (
+                  {readiness.checkpoints.map(cp => (
                     <CheckpointItem key={cp.id} cp={cp} />
                   ))}
                 </div>
