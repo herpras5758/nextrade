@@ -336,3 +336,4 @@ export async function adminConfigRoutes(app: FastifyInstance) {
       return { config: tenant?.config ?? {} };
     });
   });
+}
