@@ -63,7 +63,7 @@ export class PipelineStack extends cdk.Stack {
       memorySize: 512,
       environment: lambdaEnv,
       bundling: {
-        externalModules: ["@aws-sdk/*"], // present in the Lambda Node 20 runtime already
+        externalModules: ["@aws-sdk/*", "pdf-lib", "pg"], // present in the Lambda Node 20 runtime already
       },
     };
 
@@ -233,7 +233,7 @@ export class PipelineStack extends cdk.Stack {
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [props.dbSecurityGroup],
-      bundling: { externalModules: ["@aws-sdk/*"] },
+      bundling: { externalModules: ["@aws-sdk/*", "pdf-lib", "pg"] },
     });
     this.stateMachine.grantStartExecution(triggerFn);
     triggerFn.addToRolePolicy(
@@ -305,7 +305,7 @@ export class PipelineStack extends cdk.Stack {
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [props.dbSecurityGroup],
-      bundling: { externalModules: ["@aws-sdk/*"] },
+      bundling: { externalModules: ["@aws-sdk/*", "pdf-lib", "pg"] },
       environment: {
         DB_SECRET_ARN: props.dbSecretArn,
         DOCUMENTS_BUCKET_NAME: props.documentsBucket.bucketName,
