@@ -510,8 +510,9 @@ CREATE TABLE tenant_ai_config (
   conflict_auto_resolve_threshold DECIMAL(4,3) DEFAULT 0.900,
   identity_signals_active JSONB DEFAULT '["INVOICE_NUMBER","BL_NUMBER","PO_NUMBER","CONTAINER_NUMBER"]',
   -- Sprint 5: Multi-provider AI (Bedrock Claude/Nova + OpenAI)
-  ai_provider           VARCHAR(20) DEFAULT 'openai',  -- openai | bedrock
+  ai_provider           VARCHAR(20) DEFAULT 'openai',  -- openai | anthropic | bedrock
   openai_api_key        TEXT,                           -- stored encrypted
+  anthropic_api_key     TEXT,                           -- Anthropic direct API key
   pipeline_timeout_seconds INT DEFAULT 120,
   updated_at       TIMESTAMPTZ DEFAULT NOW(),
   last_event_id    UUID REFERENCES evidence_events(id)

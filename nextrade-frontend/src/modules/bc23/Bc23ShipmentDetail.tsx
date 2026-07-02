@@ -25,14 +25,8 @@ interface Checkpoint {
   status: 'PASS' | 'WARN' | 'FAIL' | 'NA'; detail: string; confidence: number;
 }
 interface Readiness {
-  score?: number;
-  overallStatus?: string;
-  checkpoints?: any[];
-  reasoning?: { summary: string; recommendation: string; failed_items?: string[]; warned_items?: string[] };
-  summary?: { pass: number; warn: number; fail: number; mandatoryFieldsMissing?: any[] };
-  is_ready?: boolean;
-  fail?: number;
-  warn?: number;
+  score: number; is_ready: boolean; pass: number; warn: number; fail: number;
+  checkpoints: Checkpoint[]; reasoning: { summary: string; recommendation: string; failed_items: string[]; warned_items: string[] };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -147,7 +141,7 @@ export function Bc23ShipmentDetail() {
           reasoning: {
             summary: r.overallStatus === 'READY' ? 'Semua checkpoint terpenuhi — siap untuk submit ke CEISA'
               : r.overallStatus === 'NEARLY_READY' ? `Hampir siap — ${r.summary?.warn ?? 0} checkpoint perlu perhatian`
-              : `Not ready — ${r.summary?.fail ?? 0} checkpoints failed: ${(r.checkpoints ?? []).filter((c:any) => c.status === 'FAIL').map((c:any) => c.name).filter(Boolean).slice(0,3).join(', ') || 'all checkpoints need data'}`,
+              : `Not ready — ${r.summary?.fail ?? 0} checkpoints failed: ${(r.checkpoints ?? []).filter((c:any) => c.status === 'FAIL').map((c:any) => c.name).slice(0,3).join(', ')}`,
             recommendation: r.summary?.mandatoryFieldsMissing?.length > 0
               ? `Field wajib CEISA yang belum ada: ${r.summary.mandatoryFieldsMissing.slice(0,5).map((f:any) => f.display_name ?? f.field_key).join(', ')}`
               : r.overallStatus === 'READY' ? 'Ready to proceed to Draft BC 2.3' : 'Upload missing documents or verify fields that need review',
@@ -222,7 +216,7 @@ export function Bc23ShipmentDetail() {
             </div>
             <div className="flex flex-col gap-1">
               {readiness && <>
-                <span className="text-[10px] text-[#36B37E]">✅ {(readiness as any).pass ?? readiness?.summary?.pass ?? 0} pass</span>
+                <span className="text-[10px] text-[#36B37E]">✅ {readiness.pass} pass</span>
                 <span className="text-[10px] text-[#FFAB00]">⚠️ {readiness.warn} warn</span>
                 <span className="text-[10px] text-[#FF5630]">❌ {readiness.fail} fail</span>
               </>}
@@ -236,7 +230,7 @@ export function Bc23ShipmentDetail() {
         </div>
 
         {/* AI summary bar */}
-        {(readiness as any)?.reasoning?.summary && (
+        {readiness?.reasoning?.summary && (
           <div className="border-t border-[#DFE1E6] px-4 py-2.5 bg-teal-50 flex items-start gap-2">
             <Sparkles size={13} className="text-[#0EA5A4] flex-shrink-0 mt-0.5" />
             <p className="text-xs text-[#0EA5A4]">
@@ -451,7 +445,7 @@ export function Bc23ShipmentDetail() {
         {/* ── CEISA SUBMIT ── */}
         {tab === 'ceisa' && (
           <div className="p-4">
-            {(!readiness?.overallStatus || readiness?.overallStatus === 'NOT_READY' || readiness?.overallStatus === 'NEEDS_ATTENTION') && (
+            {(readiness?.overallStatus === 'NOT_READY' || readiness?.overallStatus === 'NEEDS_ATTENTION') && (
               <div className="checkpoint-fail mb-4">
                 <XCircle size={16} className="text-[#FF5630] flex-shrink-0" />
                 <div>
@@ -467,7 +461,7 @@ export function Bc23ShipmentDetail() {
               </div>
             )}
 
-            {(readiness?.score ?? 0) >= 70 && !ceisaResult && (
+            {(readiness?.overallStatus === 'READY' || readiness?.overallStatus === 'NEARLY_READY') && !ceisaResult && (
               <div className="checkpoint-pass mb-4">
                 <CheckCircle size={16} className="text-[#36B37E] flex-shrink-0" />
                 <div>

@@ -40,7 +40,7 @@ export async function adminConfigRoutes(app: FastifyInstance) {
            (tenant_id, bedrock_model_id, max_tokens, temperature,
             threshold_auto_approved, threshold_recommended,
             ceisa_mode, ceisa_endpoint, ceisa_api_key,
-            ai_provider, openai_api_key,
+            ai_provider, openai_api_key, anthropic_api_key,
             extraction_model_id, extraction_max_tokens,
             last_event_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
@@ -55,6 +55,7 @@ export async function adminConfigRoutes(app: FastifyInstance) {
            ceisa_api_key = EXCLUDED.ceisa_api_key,
            ai_provider = EXCLUDED.ai_provider,
            openai_api_key = EXCLUDED.openai_api_key,
+           anthropic_api_key = EXCLUDED.anthropic_api_key,
            extraction_model_id = EXCLUDED.extraction_model_id,
            extraction_max_tokens = EXCLUDED.extraction_max_tokens,
            updated_at = NOW(), last_event_id = EXCLUDED.last_event_id
@@ -65,6 +66,7 @@ export async function adminConfigRoutes(app: FastifyInstance) {
          body.ceisa_api_key ?? null,
          body.ai_provider ?? 'openai',
          body.openai_api_key ?? null,
+         body.anthropic_api_key ?? null,
          body.extraction_model_id ?? 'gpt-4o',
          body.extraction_max_tokens ?? 4096,
          evt.id]
@@ -307,6 +309,7 @@ export async function adminConfigRoutes(app: FastifyInstance) {
       return rows;
     });
   });
+}
 
   // GET tenant config
   app.get('/tenants/:tenantId/config', async (req, reply) => {
@@ -334,4 +337,3 @@ export async function adminConfigRoutes(app: FastifyInstance) {
       return { config: tenant?.config ?? {} };
     });
   });
-}

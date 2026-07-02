@@ -127,20 +127,78 @@ async function callOpenAI(
   return data.choices?.[0]?.message?.content ?? '{}';
 }
 
+// Anthropic direct API call
+async function callAnthropic(
+  apiKey: string,
+  model: string,
+  contentBlocks: any[],
+  textPrompt: string,
+  maxTokens: number
+): Promise<string> {
+  const messages: any[] = [];
+  const userContent: any[] = [];
+
+  for (const block of contentBlocks) {
+    if (block.type === 'document') {
+      userContent.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: block.source.data }
+      });
+    } else if (block.type === 'image') {
+      userContent.push({
+        type: 'image',
+        source: { type: 'base64', media_type: block.source.media_type, data: block.source.data }
+      });
+    }
+  }
+  userContent.push({ type: 'text', text: textPrompt });
+  messages.push({ role: 'user', content: userContent });
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: model ?? 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      messages,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic error ${res.status}: ${err.slice(0, 200)}`);
+  }
+
+  const data = await res.json() as any;
+  return data.content?.[0]?.text ?? '{}';
+}
+
 // Universal invoke — picks provider based on model config
 async function invokeAI(
   model: string,
   openaiApiKey: string | null,
   contentBlocks: any[],
   textPrompt: string,
-  maxTokens: number
+  maxTokens: number,
+  anthropicApiKey: string | null = null
 ): Promise<string> {
   const isOpenAI = model.startsWith('gpt-') || model.startsWith('o1') || model.startsWith('o3');
+  const isAnthropic = model.startsWith('claude-') && !model.startsWith('claude-') === false;
+  const isAnthropicDirect = anthropicApiKey && (model.startsWith('claude-') || !model.includes('.'));
 
   if (isOpenAI) {
-    if (!openaiApiKey) throw new Error('OpenAI API key not configured in tenant_ai_config');
+    if (!openaiApiKey) throw new Error('OpenAI API key not configured');
     console.log('[Pipeline] Using OpenAI:', model);
     return await callOpenAI(openaiApiKey, model, contentBlocks, textPrompt, maxTokens);
+  }
+
+  if (isAnthropicDirect) {
+    console.log('[Pipeline] Using Anthropic direct:', model);
+    return await callAnthropic(anthropicApiKey!, model, contentBlocks, textPrompt, maxTokens);
   }
 
   // Bedrock (Claude or Nova)
@@ -159,7 +217,8 @@ async function classifyContent(
   mediaType: string,
   docTypes: any[],
   model: string,
-  openaiApiKey: string | null = null
+  openaiApiKey: string | null = null,
+  anthropicApiKey: string | null = null
 ): Promise<{ type: string; confidence: number }> {
   const hints = docTypes.map(dt =>
     `- ${dt.doc_type_code}: ${(dt.classification_hints ?? []).join(', ')}`
@@ -171,7 +230,7 @@ async function classifyContent(
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Data } };
 
-  const text = await invokeAI(model, openaiApiKey, [contentBlock], prompt, 128);
+  const text = await invokeAI(model, openaiApiKey, [contentBlock], prompt, 128, anthropicApiKey);
   try {
     return JSON.parse(text.replace(/```json|```/g, '').trim());
   } catch {
@@ -188,7 +247,8 @@ async function extractFields(
   docTypes: any[],
   model: string,
   maxTokens: number,
-  openaiApiKey: string | null = null
+  openaiApiKey: string | null = null,
+  anthropicApiKey: string | null = null
 ): Promise<Record<string, any>> {
   const promptOverride = docTypes.find(dt => dt.doc_type_code === docTypeCode)?.extraction_prompt_override;
   const fieldList = docTypeFields
@@ -202,7 +262,7 @@ async function extractFields(
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }
     : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Data } };
 
-  const text = await invokeAI(model, openaiApiKey, [contentBlock], prompt, Math.min(maxTokens * 2, 8192));
+  const text = await invokeAI(model, openaiApiKey, [contentBlock], prompt, Math.min(maxTokens * 2, 8192), anthropicApiKey);
   try {
     let jsonStr = text.replace(/```json|```/g, '').trim();
     const lastBrace = jsonStr.lastIndexOf('}');
@@ -334,7 +394,8 @@ async function splitAndClassifyPDF(
   pdfBytes: Uint8Array,
   docTypes: any[],
   model: string,
-  openaiApiKey: string | null = null
+  openaiApiKey: string | null = null,
+  anthropicApiKey: string | null = null
 ): Promise<{ pageRange: [number, number]; type: string; confidence: number }[]> {
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const totalPages = pdfDoc.getPageCount();
@@ -347,7 +408,7 @@ async function splitAndClassifyPDF(
     singlePdf.addPage(page);
     const singleBytes = await singlePdf.save();
     const b64 = Buffer.from(singleBytes).toString('base64');
-    const cls = await classifyContent(b64, 'application/pdf', docTypes, model, openaiApiKey);
+    const cls = await classifyContent(b64, 'application/pdf', docTypes, model, openaiApiKey, anthropicApiKey);
     return [{ pageRange: [0, 0], type: cls.type, confidence: cls.confidence }];
   }
 
@@ -361,7 +422,7 @@ async function splitAndClassifyPDF(
     singlePdf.addPage(page);
     const pageBytes = await singlePdf.save();
     const b64 = Buffer.from(pageBytes).toString('base64');
-    const cls = await classifyContent(b64, 'application/pdf', docTypes, model, openaiApiKey);
+    const cls = await classifyContent(b64, 'application/pdf', docTypes, model, openaiApiKey, anthropicApiKey);
     pageTypes.push(cls);
     console.log(`[Pipeline] Page ${i + 1}/${pagesToCheck}: ${cls.type} (${Math.round(cls.confidence * 100)}%)`);
   }
@@ -457,7 +518,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
 
     if (isPDF) {
       // ── PDF: detect segments, extract per segment ──────────────────────────
-      const segments = await splitAndClassifyPDF(fileBytes, docTypes, model, openaiApiKey);
+      const segments = await splitAndClassifyPDF(fileBytes, docTypes, model, openaiApiKey, anthropicApiKey);
 
       for (let i = 0; i < segments.length; i++) {
         const seg = segments[i];
@@ -468,7 +529,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
 
         // Extract fields from segment
         const extracted = docTypeFields.length > 0
-          ? await extractFields(segBase64, 'application/pdf', seg.type, docTypeFields, docTypes, model, maxTokens, openaiApiKey)
+          ? await extractFields(segBase64, 'application/pdf', seg.type, docTypeFields, docTypes, model, maxTokens, openaiApiKey, anthropicApiKey)
           : {};
         const confidenceMap = extracted._confidence ?? {};
         delete extracted._confidence;
@@ -548,12 +609,12 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
     } else {
       // ── IMAGE: single classification + extraction ──────────────────────────
       const b64 = fileBuffer.toString('base64');
-      const cls = await classifyContent(b64, mediaType, docTypes, model, openaiApiKey);
+      const cls = await classifyContent(b64, mediaType, docTypes, model, openaiApiKey, anthropicApiKey);
       console.log('[Pipeline] Classification:', cls);
 
       const docTypeFields = fieldsByDocType[cls.type] ?? [];
       const extracted = docTypeFields.length > 0
-        ? await extractFields(b64, mediaType, cls.type, docTypeFields, docTypes, model, maxTokens, openaiApiKey)
+        ? await extractFields(b64, mediaType, cls.type, docTypeFields, docTypes, model, maxTokens, openaiApiKey, anthropicApiKey)
         : {};
       const confidenceMap = extracted._confidence ?? {};
       delete extracted._confidence;

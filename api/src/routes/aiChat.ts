@@ -20,7 +20,7 @@ export async function aiChatRoutes(app: FastifyInstance) {
       return withTenant(tenantId, async (client) => {
         // Load accessible tenant IDs (multi-BU support)
         const tenantIds: string[] = [tenantId];
-        const claimTenantIds = req.auth!.tenantIds ?? [];
+        const claimTenantIds = (req.auth!.tenantIds ?? [];
         for (const tid of claimTenantIds) {
           if (!tenantIds.includes(tid)) tenantIds.push(tid);
         }
@@ -78,7 +78,17 @@ Jika data tidak tersedia, katakan tegas "Data tidak tersedia di sistem."
 
         let answer = 'Maaf, tidak dapat memproses pertanyaan ini.';
 
-        if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
+        if (aiCfg?.ai_provider === 'anthropic' && aiCfg?.anthropic_api_key) {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': aiCfg.anthropic_api_key, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({ model: aiCfg.extraction_model_id ?? 'claude-sonnet-4-6', max_tokens: 1024,
+              messages: [{ role: 'user', content: (typeof systemContext !== 'undefined' ? systemContext + '\n\n' : '') + (typeof message !== 'undefined' ? message : (body?.prompt ?? '')) + (typeof dataContext !== 'undefined' ? '\n\n' + dataContext : '') }] }),
+          });
+          const data = await res.json() as any;
+          const _ans = data.content?.[0]?.text ?? '';
+          if (_ans) { answer = _ans; }
+        } else if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
           const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiCfg.openai_api_key}` },

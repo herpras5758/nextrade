@@ -66,7 +66,7 @@ export class EvidenceWriter {
       `INSERT INTO identity_signals
          (tenant_id, signal_type, raw_value, producer_type, producer_ref,
           extraction_confidence, origin_event_id, last_event_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$7)
        RETURNING id`,
       [
         signal.tenantId,
@@ -112,7 +112,7 @@ export class EvidenceWriter {
       `INSERT INTO identity_signals
          (tenant_id, signal_type, raw_value, producer_type, producer_ref,
           extraction_confidence, is_active, origin_event_id, last_event_id)
-       VALUES ($1,$2,$3,$4,$5,$6,true,$7,$8)
+       VALUES ($1,$2,$3,$4,$5,$6,true,$7,$7)
        RETURNING id`,
       [
         newSignal.tenantId,
