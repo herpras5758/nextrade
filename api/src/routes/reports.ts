@@ -21,7 +21,7 @@ export async function reportRoutes(app: FastifyInstance) {
       return withTenant(tenantId, async (client) => {
         const tenantIds: string[] = [tenantId];
         if (all_bu === 'true') {
-          const claimIds = req.auth!.tenantIds;
+          const claimIds = (req.auth!.tenantIds ?? [];
           for (const tid of claimIds) if (!tenantIds.includes(tid)) tenantIds.push(tid);
         }
 
@@ -54,9 +54,22 @@ export async function reportRoutes(app: FastifyInstance) {
         const totalShipments = shipments.rows.length;
         const submitted = shipments.rows.filter((s: any) => ['SUBMITTED','SPPB','CLOSED'].includes(s.status)).length;
         const readyForCeisa = shipments.rows.filter((s: any) => s.status === 'READY_FOR_CEISA').length;
+        const pendingReview = shipments.rows.filter((s: any) => s.status === 'UNDER_REVIEW').length;
+        const critical = shipments.rows.filter((s: any) => s.health === 'CRITICAL').length;
         const avgReadiness = totalShipments > 0
           ? Math.round(shipments.rows.reduce((a: number, s: any) => a + (s.ceisa_readiness_score ?? 0), 0) / totalShipments)
           : 0;
+
+        // Recent activity from evidence_events
+        const { rows: recentActivity } = await client.query(
+          `SELECT ee.event_type, ee.event_time, ee.entity_type, ee.entity_id,
+                  ee.payload, s.shipment_number
+           FROM evidence_events ee
+           LEFT JOIN shipments s ON s.id = ee.entity_id
+           WHERE ee.tenant_id = ANY($1::uuid[])
+           ORDER BY ee.event_time DESC LIMIT 10`,
+          [tenantIds]
+        ).catch(() => ({ rows: [] }));
 
         return {
           period: { from: from ?? null, to: to ?? null },
@@ -65,14 +78,20 @@ export async function reportRoutes(app: FastifyInstance) {
             total: totalShipments,
             submitted,
             ready_for_ceisa: readyForCeisa,
+            pending_review: pendingReview,
+            critical,
             avg_readiness: avgReadiness,
             by_status: shipments.rows.reduce((acc: any, s: any) => {
               acc[s.status] = (acc[s.status] ?? 0) + 1; return acc;
+            }, {}),
+            by_health: shipments.rows.reduce((acc: any, s: any) => {
+              acc[s.health ?? 'UNKNOWN'] = (acc[s.health ?? 'UNKNOWN'] ?? 0) + 1; return acc;
             }, {}),
             by_tenant: shipments.rows.reduce((acc: any, s: any) => {
               acc[s.tenant_name] = (acc[s.tenant_name] ?? 0) + 1; return acc;
             }, {}),
           },
+          recent_activity: recentActivity,
           documents: {
             total: docs.rows.reduce((a: number, d: any) => a + parseInt(d.cnt), 0),
             by_type: docs.rows.reduce((acc: any, d: any) => {
@@ -106,7 +125,7 @@ export async function reportRoutes(app: FastifyInstance) {
         // Reuse summary data
         const tenantIds: string[] = [tenantId];
         if (body.all_bu) {
-          const claimIds = req.auth!.tenantIds;
+          const claimIds = (req.auth!.tenantIds ?? [];
           for (const tid of claimIds) if (!tenantIds.includes(tid)) tenantIds.push(tid);
         }
 
@@ -132,20 +151,35 @@ Detail shipment:
 ${shipments.slice(0, 20).map((s: any) => `${s.shipment_number} | ${s.status} | ${s.ceisa_readiness_score}% | ${s.health} | ${s.tenant_name}`).join('\n')}
 `;
 
-        const response = await bedrock.send(new InvokeModelCommand({
-          modelId: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-          contentType: 'application/json',
-          accept: 'application/json',
-          body: JSON.stringify({
-            anthropic_version: 'bedrock-2023-05-31',
-            max_tokens: 2048,
-            system: `Kamu adalah analis trade compliance NexTrade. Buat laporan profesional dalam Bahasa Indonesia berdasarkan data aktual. Sertakan: ringkasan eksekutif, temuan utama, risiko, dan rekomendasi. Format dengan heading yang jelas.`,
-            messages: [{ role: 'user', content: `${body.prompt}\n\n${dataContext}` }],
-          }),
-        }));
+        // Load AI config
+        const { rows: [aiCfg] } = await client.query(
+          `SELECT extraction_model_id, openai_api_key, ai_provider FROM tenant_ai_config WHERE tenant_id = $1`,
+          [tenantId]
+        );
 
-        const parsed = JSON.parse(new TextDecoder().decode(response.body));
-        const narrative = parsed.content?.[0]?.text ?? 'Tidak dapat generate laporan.';
+        let narrative = 'Tidak dapat generate laporan.';
+        const systemPrompt = 'Kamu adalah analis trade compliance NexTrade. Buat laporan profesional dalam Bahasa Indonesia berdasarkan data aktual. Sertakan: ringkasan eksekutif, temuan utama, risiko, dan rekomendasi. Format dengan heading yang jelas.';
+        const userMessage = `${body.prompt}\n\n${dataContext}`;
+
+        if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiCfg.openai_api_key}` },
+            body: JSON.stringify({ model: aiCfg.extraction_model_id ?? 'gpt-4o', max_tokens: 2048,
+              messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }] }),
+          });
+          const data = await res.json() as any;
+          narrative = data.choices?.[0]?.message?.content ?? narrative;
+        } else {
+          const response = await bedrock.send(new InvokeModelCommand({
+            modelId: aiCfg?.extraction_model_id ?? 'global.anthropic.claude-sonnet-4-6',
+            contentType: 'application/json', accept: 'application/json',
+            body: JSON.stringify({ anthropic_version: 'bedrock-2023-05-31', max_tokens: 2048,
+              system: systemPrompt, messages: [{ role: 'user', content: userMessage }] }),
+          }));
+          const parsed = JSON.parse(new TextDecoder().decode(response.body));
+          narrative = parsed.content?.[0]?.text ?? narrative;
+        }
 
         return { narrative, generated_at: new Date().toISOString(), shipments_analyzed: shipments.length };
       });

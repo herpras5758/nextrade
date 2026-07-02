@@ -92,10 +92,10 @@ function CheckpointItem({ cp }: { cp: Checkpoint }) {
 type TabId = 'documents' | 'fields' | 'checkpoint' | 'draft' | 'ceisa';
 
 const TABS: { id: TabId; label: string; icon: typeof FileText }[] = [
-  { id: 'documents',  label: 'Dokumen',      icon: FileText   },
-  { id: 'fields',     label: 'Fields & AI',  icon: Sparkles   },
-  { id: 'checkpoint', label: 'Checkpoint',   icon: Shield     },
-  { id: 'draft',      label: 'Draft CEISA',  icon: FileText   },
+  { id: 'documents',  label: 'Documents',      icon: FileText   },
+  { id: 'fields',     label: 'Fields & AI', icon: Sparkles   },
+  { id: 'checkpoint', label: 'Checkpoints',   icon: Shield     },
+  { id: 'draft',      label: 'Draft BC 2.3', icon: FileText   },
   { id: 'ceisa',      label: 'Submit CEISA', icon: Send       },
 ];
 
@@ -111,6 +111,8 @@ export function Bc23ShipmentDetail() {
   const [fields, setFields]       = useState<CtdmField[]>([]);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [ceisaResult, setCeisaResult] = useState<any>(null);
+  const [draft, setDraft]             = useState<any>(null);
+  const [loadingDraft, setLoadingDraft] = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -120,13 +122,32 @@ export function Bc23ShipmentDetail() {
       const [sRes, dRes, fRes, rRes] = await Promise.all([
         apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}`),
         apiClient.get(`/tenants/${currentTenant.id}/documents?shipment_id=${shipmentId}`),
-        apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}/fields`).catch(() => ({ data: [] })),
+        apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}/fields`).catch(() => ({ data: { allFields: [], totalFields: 0 } })),
         apiClient.get(`/tenants/${currentTenant.id}/shipments/${shipmentId}/ceisa-readiness`).catch(() => ({ data: null })),
       ]);
       setShipment(sRes.data);
       setDocs(dRes.data);
-      setFields(fRes.data);
-      setReadiness(rRes.data);
+      setFields(fRes.data?.allFields ?? fRes.data ?? []);
+      const r = rRes.data;
+      if (r) {
+        // Map new format to existing UI expectations
+        setReadiness({
+          score: r.score,
+          overallStatus: r.overallStatus,
+          checkpoints: (r.checkpoints ?? []).map((cp: any) => ({
+            ...cp,
+            status: cp.status === 'PASS' ? 'PASS' : cp.status === 'WARN' ? 'WARN' : 'FAIL',
+          })),
+          reasoning: {
+            summary: r.overallStatus === 'READY' ? 'Semua checkpoint terpenuhi — siap untuk submit ke CEISA'
+              : r.overallStatus === 'NEARLY_READY' ? `Hampir siap — ${r.summary?.warn ?? 0} checkpoint perlu perhatian`
+              : `Not ready — ${r.summary?.fail ?? 0} checkpoints failed: ${(r.checkpoints ?? []).filter((c:any) => c.status === 'FAIL').map((c:any) => c.name).slice(0,3).join(', ')}`,
+            recommendation: r.summary?.mandatoryFieldsMissing?.length > 0
+              ? `Field wajib CEISA yang belum ada: ${r.summary.mandatoryFieldsMissing.slice(0,5).map((f:any) => f.display_name ?? f.field_key).join(', ')}`
+              : r.overallStatus === 'READY' ? 'Ready to proceed to Draft BC 2.3' : 'Upload missing documents or verify fields that need review',
+          },
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -145,7 +166,7 @@ export function Bc23ShipmentDetail() {
   }
 
   if (isLoading) return (
-    <div className="flex h-64 items-center justify-center text-sm text-[#6B778C]">Memuat...</div>
+    <div className="flex h-64 items-center justify-center text-sm text-[#6B778C]">Loading...</div>
   );
   if (!shipment) return (
     <div className="flex h-64 items-center justify-center text-sm text-[#6B778C]">Shipment tidak ditemukan.</div>
@@ -180,7 +201,7 @@ export function Bc23ShipmentDetail() {
               </span>
             </div>
             <p className="text-xs text-[#6B778C] mt-0.5">
-              {docs.length} dokumen · {fields.length} field terekstrak
+              {docs.length} documents · {fields.length} fields extracted
             </p>
           </div>
 
@@ -204,7 +225,7 @@ export function Bc23ShipmentDetail() {
 
           {/* Upload more */}
           <button onClick={() => navigate('/upload')} className="btn-secondary gap-1">
-            <Upload size={13} /> + Tambah Dokumen
+            <Upload size={13} /> + Add Document
           </button>
         </div>
 
@@ -296,12 +317,13 @@ export function Bc23ShipmentDetail() {
               <span className="text-xs text-[#6B778C]">Confidence ≥85% auto-approved · 70-84% recommended · &lt;70% perlu review manual</span>
             </div>
             {fields.length === 0 ? (
-              <div className="py-16 text-center text-sm text-[#6B778C]">Pipeline belum selesai mengekstrak fields.</div>
+              <div className="py-16 text-center text-sm text-[#6B778C]">Pipeline has not finished extracting fields.</div>
             ) : (
               <table className="table-enterprise">
                 <thead>
                   <tr>
                     <th>Field</th>
+                    <th>Doc Type</th>
                     <th>Nilai</th>
                     <th style={{ width: '160px' }}>Confidence AI</th>
                     <th>Status</th>
@@ -311,7 +333,7 @@ export function Bc23ShipmentDetail() {
                 <tbody>
                   {fields.map(f => (
                     <tr key={f.id}>
-                      <td><span className="font-mono text-[11px]">{f.field_key}</span></td>
+                      <td><div className="font-medium text-[11px]">{(f as any).display_name ?? f.field_key}</div><div className="font-mono text-[10px] text-[#6B778C]">{f.field_key}</div></td>
                       <td><span className="font-medium">{f.resolved_value || '—'}</span></td>
                       <td><ConfidenceBar value={(f.confidence ?? 0) * 100} /></td>
                       <td>
@@ -338,7 +360,7 @@ export function Bc23ShipmentDetail() {
             {!readiness ? (
               <div className="py-12 text-center text-sm text-[#6B778C]">
                 <RefreshCw size={24} className="mx-auto mb-2 text-[#DFE1E6]" />
-                Menghitung checkpoint...
+                Computing checkpoints...
               </div>
             ) : (
               <>
@@ -347,7 +369,7 @@ export function Bc23ShipmentDetail() {
                   <div className="flex items-start gap-2">
                     <Sparkles size={14} className="text-[#0EA5A4] flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs font-semibold text-[#0EA5A4] mb-1">Analisis AI — 9 Checkpoint DJBC</p>
+                      <p className="text-xs font-semibold text-[#0EA5A4] mb-1">AI Analysis — 9 DJBC Checkpoints</p>
                       <p className="text-xs text-[#1B2A4A]">{readiness.reasoning.summary}</p>
                       <p className="text-xs text-[#6B778C] mt-1">{readiness.reasoning.recommendation}</p>
                     </div>
@@ -369,58 +391,77 @@ export function Bc23ShipmentDetail() {
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="section-title">Preview Draft BC 2.3</p>
-                <p className="text-xs text-[#6B778C] mt-0.5">Preview payload sebelum submit. Submit hanya dari tab CEISA.</p>
+                <p className="section-title">Draft BC 2.3 Preview</p>
+                <p className="text-xs text-[#6B778C] mt-0.5">Preview payload yang akan dikirim ke CEISA. Submit dari tab CEISA.</p>
               </div>
-              <button className="btn-secondary gap-1"><Download size={13} /> Export PDF</button>
+              <button className="btn-secondary gap-1" onClick={() => {
+                setDraft(null);
+                setLoadingDraft(true);
+                apiClient.get(`/tenants/${currentTenant?.id}/shipments/${shipmentId}/ceisa-draft`)
+                  .then(r => setDraft(r.data?.payload)).catch(() => {}).finally(() => setLoadingDraft(false));
+              }}><RefreshCw size={13} /> Refresh</button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                ['Nomor AJU', fields.find(f => f.field_key === 'nomor_aju')?.resolved_value ?? '— (generate di tab CEISA)'],
-                ['Jenis PIB', fields.find(f => f.field_key === 'jenis_pib')?.resolved_value ?? 'PIB Biasa'],
-                ['Kantor Pabean', fields.find(f => f.field_key === 'kantor_pabean')?.resolved_value ?? '—'],
-                ['NPWP Importir', fields.find(f => f.field_key === 'npwp_importir')?.resolved_value ?? '—'],
-                ['Nama Importir', fields.find(f => f.field_key === 'consignee_name')?.resolved_value ?? '—'],
-                ['Nama Eksportir', fields.find(f => f.field_key === 'supplier_name')?.resolved_value ?? '—'],
-                ['No. Invoice', fields.find(f => f.field_key === 'invoice_number')?.resolved_value ?? '—'],
-                ['No. B/L', fields.find(f => f.field_key === 'bl_number')?.resolved_value ?? '—'],
-                ['Valuta', fields.find(f => f.field_key === 'currency')?.resolved_value ?? 'USD'],
-                ['Total FOB', fields.find(f => f.field_key === 'fob_value')?.resolved_value ?? '—'],
-                ['Freight', fields.find(f => f.field_key === 'freight')?.resolved_value ?? '—'],
-                ['Total CIF', fields.find(f => f.field_key === 'cif_value')?.resolved_value ?? '—'],
-                ['Berat Kotor', fields.find(f => f.field_key === 'gross_weight')?.resolved_value ?? '—'],
-                ['Berat Bersih', fields.find(f => f.field_key === 'net_weight')?.resolved_value ?? '—'],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded border border-[#DFE1E6] bg-[#F4F5F7] px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B778C]">{label}</p>
-                  <p className="text-sm font-medium text-[#1B2A4A] mt-0.5">{value}</p>
+            {loadingDraft ? (
+              <div className="py-12 text-center text-sm text-[#6B778C]">Loading draft...</div>
+            ) : !draft ? (
+              <div className="py-12 text-center text-sm text-[#6B778C]">
+                <p>Draft not yet available — document extraction must complete first.</p>
+                <p className="text-xs mt-1 text-[#6B778C]">Upload and commit Invoice, Packing List, and B/L to generate draft.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(draft ?? {}).filter(([k]) => !['items','hs_codes','pos_tarif_list'].includes(k)).map(([key, value]) => (
+                    <div key={key} className="rounded border border-[#DFE1E6] bg-[#F4F5F7] px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B778C]">{key.replace(/_/g,' ')}</p>
+                      <p className="text-sm font-medium text-[#1B2A4A] mt-0.5">{String(value) || '—'}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                {draft?.items && (
+                  <div>
+                    <p className="section-title mb-2">Items</p>
+                    <table className="table-enterprise">
+                      <thead><tr><th>Deskripsi</th><th>HS Code</th><th>Qty</th><th>CIF (USD)</th></tr></thead>
+                      <tbody>
+                        {(Array.isArray(draft.items) ? draft.items : []).map((item: any, i: number) => (
+                          <tr key={i}>
+                            <td>{item.description ?? item.uraian ?? '—'}</td>
+                            <td className="font-mono">{item.hs_code ?? item.pos_tarif ?? '—'}</td>
+                            <td>{item.qty ?? item.jumlah ?? '—'}</td>
+                            <td>{item.cif_value ?? item.nilai_cif ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* ── CEISA SUBMIT ── */}
         {tab === 'ceisa' && (
           <div className="p-4">
-            {!readiness?.is_ready && (
+            {(readiness?.overallStatus === 'NOT_READY' || readiness?.overallStatus === 'NEEDS_ATTENTION') && (
               <div className="checkpoint-fail mb-4">
                 <XCircle size={16} className="text-[#FF5630] flex-shrink-0" />
                 <div>
-                  <p className="text-xs font-semibold text-[#FF5630]">Belum siap submit ke CEISA</p>
+                  <p className="text-xs font-semibold text-[#FF5630]">Not ready to submit to CEISA</p>
                   <p className="text-xs text-[#6B778C] mt-0.5">
-                    {readiness?.fail ?? 0} checkpoint gagal · {readiness?.warn ?? 0} perlu perhatian.
+                    {readiness?.summary?.fail ?? 0} checkpoint gagal · {readiness?.summary?.warn ?? 0} perlu perhatian.
                     Selesaikan di tab Checkpoint.
                   </p>
-                  {readiness?.reasoning?.failed_items?.map((item, i) => (
-                    <p key={i} className="text-[11px] text-[#FF5630] mt-0.5">• {item}</p>
+                  {(readiness?.checkpoints ?? []).filter((c:any) => c.status === 'FAIL').map((c:any, i:number) => (
+                    <p key={i} className="text-[11px] text-[#FF5630] mt-0.5">• {c.name}: {c.detail}</p>
                   ))}
                 </div>
               </div>
             )}
 
-            {readiness?.is_ready && !ceisaResult && (
+            {(readiness?.overallStatus === 'READY' || readiness?.overallStatus === 'NEARLY_READY') && !ceisaResult && (
               <div className="checkpoint-pass mb-4">
                 <CheckCircle size={16} className="text-[#36B37E] flex-shrink-0" />
                 <div>

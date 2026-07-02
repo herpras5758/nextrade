@@ -64,7 +64,7 @@ export function LoginPage() {
 
         {stage === "login" ? (
           <form onSubmit={handleLogin} className="space-y-4">
-            <h1 className="text-lg font-semibold text-white">{t("auth.login", "Masuk")}</h1>
+            <h1 className="text-lg font-semibold text-white">{t("auth.login", "Sign In")}</h1>
             <div>
               <label className="mb-1 block text-2xs font-medium text-navy-600">Email</label>
               <input
@@ -77,7 +77,7 @@ export function LoginPage() {
             </div>
             <div>
               <label className="mb-1 block text-2xs font-medium text-navy-600">
-                {t("auth.password", "Kata Sandi")}
+                {t("auth.password", "Password")}
               </label>
               <input
                 type="password"
@@ -93,20 +93,20 @@ export function LoginPage() {
               disabled={isSubmitting}
               className="w-full rounded bg-intel-500 py-2 text-sm font-medium text-navy-950 hover:bg-intel-400 disabled:opacity-50"
             >
-              {isSubmitting ? t("common.loading") : t("auth.login", "Masuk")}
+              {isSubmitting ? t("common.loading") : t("auth.login", "Sign In")}
             </button>
           </form>
         ) : (
           <form onSubmit={handleNewPassword} className="space-y-4">
             <h1 className="text-lg font-semibold text-white">
-              {t("auth.setNewPassword", "Buat Kata Sandi Baru")}
+              {t("auth.setNewPassword", "Buat Password Baru")}
             </h1>
             <p className="text-2xs text-navy-600">
               {t("auth.firstLoginNote", "Ini login pertama Anda - buat kata sandi permanen.")}
             </p>
             <div>
               <label className="mb-1 block text-2xs font-medium text-navy-600">
-                {t("auth.newPassword", "Kata Sandi Baru")}
+                {t("auth.newPassword", "Password Baru")}
               </label>
               <input
                 type="password"
@@ -123,7 +123,7 @@ export function LoginPage() {
               disabled={isSubmitting}
               className="w-full rounded bg-intel-500 py-2 text-sm font-medium text-navy-950 hover:bg-intel-400 disabled:opacity-50"
             >
-              {isSubmitting ? t("common.loading") : t("auth.setNewPassword", "Buat Kata Sandi Baru")}
+              {isSubmitting ? t("common.loading") : t("auth.setNewPassword", "Buat Password Baru")}
             </button>
           </form>
         )}

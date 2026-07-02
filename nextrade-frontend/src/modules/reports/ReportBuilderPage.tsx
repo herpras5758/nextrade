@@ -42,25 +42,25 @@ export function ReportBuilderPage() {
     <div className="page-container">
       <div className="mb-5">
         <h1 className="page-title">Report Builder</h1>
-        <p className="page-subtitle">Laporan standar dan narasi AI berdasarkan data aktual sistem</p>
+        <p className="page-subtitle">Standard reports and AI narrative based on actual system data</p>
       </div>
 
       {/* Filters */}
       <div className="card mb-4">
-        <div className="card-header"><span className="section-title">Parameter Laporan</span></div>
+        <div className="card-header"><span className="section-title">Report Parameters</span></div>
         <div className="p-4">
           <div className="grid grid-cols-4 gap-4 items-end">
             <div>
-              <label className="input-label">Dari Tanggal</label>
+              <label className="input-label">From Date</label>
               <input type="date" className="input text-xs" value={from} onChange={e => setFrom(e.target.value)} />
             </div>
             <div>
-              <label className="input-label">Sampai Tanggal</label>
+              <label className="input-label">To Date</label>
               <input type="date" className="input text-xs" value={to} onChange={e => setTo(e.target.value)} />
             </div>
             <div className="flex items-center gap-2 pb-0.5">
               <input type="checkbox" id="all-bu" checked={allBu} onChange={e => setAllBu(e.target.checked)} />
-              <label htmlFor="all-bu" className="text-xs text-[#1B2A4A]">Semua Business Unit</label>
+              <label htmlFor="all-bu" className="text-xs text-[#1B2A4A]">All Business Units</label>
             </div>
             <div></div>
           </div>
@@ -71,7 +71,7 @@ export function ReportBuilderPage() {
       <div className="tab-bar rounded-t border border-[#DFE1E6] -mb-px">
         <button onClick={() => setTab('standard')}
           className={`tab-item flex items-center gap-1.5 ${tab === 'standard' ? 'tab-item-active' : 'tab-item-inactive'}`}>
-          <BarChart2 size={13} /> Laporan Standar
+          <BarChart2 size={13} /> Standard Report
         </button>
         <button onClick={() => setTab('ai')}
           className={`tab-item flex items-center gap-1.5 ${tab === 'ai' ? 'tab-item-active' : 'tab-item-inactive'}`}>
@@ -83,7 +83,7 @@ export function ReportBuilderPage() {
         {tab === 'standard' && (
           <>
             <div className="flex justify-between items-center mb-4">
-              <p className="text-sm text-[#6B778C]">Ringkasan operasional: total shipment, dokumen, kualitas ekstraksi, breakdown status.</p>
+              <p className="text-sm text-[#6B778C]">Operational summary: total shipments, documents, extraction quality, status breakdown.</p>
               <div className="flex gap-2">
                 <button onClick={generateStandard} disabled={loading} className="btn-primary gap-1 disabled:opacity-50">
                   {loading ? <RefreshCw size={13} className="animate-spin" /> : <BarChart2 size={13} />}
@@ -97,9 +97,9 @@ export function ReportBuilderPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-4 gap-3">
                   {[
-                    { label: 'Total Shipment', value: result.shipments.total },
+                    { label: 'Total Shipments', value: result.shipments.total },
                     { label: 'Submitted', value: result.shipments.submitted },
-                    { label: 'Siap CEISA', value: result.shipments.ready_for_ceisa },
+                    { label: 'Ready for CEISA', value: result.shipments.ready_for_ceisa },
                     { label: 'Avg Readiness', value: `${result.shipments.avg_readiness}%` },
                   ].map(({ label, value }) => (
                     <div key={label} className="rounded border border-[#DFE1E6] bg-[#F4F5F7] p-3">
@@ -122,7 +122,7 @@ export function ReportBuilderPage() {
                     </table>
                   </div>
                   <div>
-                    <p className="section-title mb-2">Tipe Dokumen</p>
+                    <p className="section-title mb-2">Document Type</p>
                     <table className="table-enterprise">
                       <thead><tr><th>Tipe</th><th>Jumlah</th></tr></thead>
                       <tbody>

@@ -63,10 +63,24 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
         }), { expiresIn: 3600, unhoistableHeaders: new Set() });
 
         await client.query(
+          // Check for duplicate by hash
+          const fileHash = body.file_hash ?? null;
+          if (fileHash) {
+            const { rows: [dup] } = await client.query(
+              `SELECT d.id, d.file_name FROM documents d
+               WHERE d.tenant_id = $1 AND d.file_hash = $2 LIMIT 1`,
+              [tenantId, fileHash]
+            );
+            if (dup) {
+              return { fileId, stagingKey, uploadUrl, isDuplicate: true, duplicateOf: dup.file_name };
+            }
+          }
+
+          await client.query(
           `INSERT INTO upload_session_files
-             (id, session_id, original_filename, s3_staging_key, file_size_bytes)
-           VALUES ($1,$2,$3,$4,$5)`,
-          [fileId, sessionId, fileName, stagingKey, fileSizeBytes]
+             (id, session_id, original_filename, s3_staging_key, file_size_bytes, file_hash)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [fileId, sessionId, fileName, stagingKey, fileSizeBytes, fileHash]
         );
 
         return { fileId, uploadUrl };

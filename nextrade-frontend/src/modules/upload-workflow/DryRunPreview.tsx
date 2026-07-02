@@ -40,9 +40,9 @@ const TIER_CONFIG = {
   AUTO_ATTACH: { label: "Auto Attach", className: "badge-success", icon: CheckCircle },
   SUGGEST: { label: "Disarankan", className: "badge bg-blue-50 text-blue-700", icon: CheckCircle },
   MANUAL_REVIEW: { label: "Perlu Review", className: "badge-warning", icon: AlertTriangle },
-  NEW_SHIPMENT: { label: "Shipment Baru", className: "badge-neutral", icon: Plus },
+  NEW_SHIPMENT: { label: "Shipment New", className: "badge-neutral", icon: Plus },
   CONFLICT: { label: "Konflik", className: "badge-danger", icon: AlertTriangle },
-  DUPLICATE: { label: "Duplikat", className: "badge-neutral", icon: Copy },
+  DUPLICATE: { label: "Duplicate", className: "badge-neutral", icon: Copy },
   PENDING_CONFLICT_RESOLUTION: { label: "Konflik", className: "badge-danger", icon: AlertTriangle },
 };
 
@@ -100,10 +100,10 @@ function FileGroup({ title, files, color, expanded: initExpanded, onResolve, sho
                       Shipment sudah READY_FOR_CEISA — pilih tindakan:
                     </span>
                     {[
-                      { action: "REPLACE_EXISTING", label: "Ganti Dokumen" },
+                      { action: "REPLACE_EXISTING", label: "Replace Dokumen" },
                       { action: "ADD_SUPPORTING", label: "Tambah Pendukung" },
-                      { action: "NEW_SHIPMENT", label: "Buat Shipment Baru" },
-                      { action: "SKIP", label: "Lewati" },
+                      { action: "NEW_SHIPMENT", label: "Buat Shipment New" },
+                      { action: "SKIP", label: "Skip" },
                     ].map(opt => (
                       <button
                         key={opt.action}
@@ -154,9 +154,9 @@ export function DryRunPreview({
           { label: "Auto Attach", value: summary.autoAttach, color: "text-success-600" },
           { label: "Disarankan", value: summary.suggest, color: "text-blue-700" },
           { label: "Perlu Review", value: summary.manualReview, color: "text-warning-600" },
-          { label: "Shipment Baru", value: summary.newShipment, color: "text-surface-text" },
+          { label: "Shipment New", value: summary.newShipment, color: "text-surface-text" },
           { label: "Konflik", value: summary.conflict, color: "text-danger-600" },
-          { label: "Duplikat", value: summary.duplicate, color: "text-surface-muted" },
+          { label: "Duplicate", value: summary.duplicate, color: "text-surface-muted" },
         ].map(({ label, value, color }) => (
           <div key={label} className="kpi-card text-center py-3">
             <p className="kpi-label">{label}</p>
@@ -183,12 +183,12 @@ export function DryRunPreview({
         files={groups.SUGGEST} color="border-blue-200 bg-blue-50" expanded={true} />
       <FileGroup title={`Perlu Review Manual (${groups.MANUAL_REVIEW.length})`}
         files={groups.MANUAL_REVIEW} color="border-warning-600 bg-warning-100" expanded={true} />
-      <FileGroup title={`Buat Shipment Baru (${groups.NEW_SHIPMENT.length})`}
+      <FileGroup title={`Buat Shipment New (${groups.NEW_SHIPMENT.length})`}
         files={groups.NEW_SHIPMENT} color="border-surface-border bg-white" expanded={true} />
       <FileGroup title={`Konflik — Shipment READY_FOR_CEISA (${groups.PENDING_CONFLICT_RESOLUTION.length})`}
         files={groups.PENDING_CONFLICT_RESOLUTION} color="border-danger-600 bg-danger-100"
         expanded={true} onResolve={onResolveConflict} showConflict />
-      <FileGroup title={`Duplikat — Sudah Ada di Sistem (${groups.DUPLICATE.length})`}
+      <FileGroup title={`Duplicate — Sudah Ada di Sistem (${groups.DUPLICATE.length})`}
         files={groups.DUPLICATE} color="border-surface-border bg-surface-page" expanded={false} />
 
       {/* Commit bar */}

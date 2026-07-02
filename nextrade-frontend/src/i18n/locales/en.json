@@ -42,14 +42,37 @@
   "dashboard": {
     "title": "Executive Dashboard",
     "subtitle": "Operational, compliance, and trade risk overview",
-    "emptyState": "No activity yet. Start by uploading your first document.",
-    "sourceBreakdown": "Document Source",
+    "emptyState": "No activity yet",
+    "emptyStateDesc": "Upload your first shipment document to start automated extraction and validation.",
+    "uploadFirst": "Upload Documents",
     "kpi": {
       "activeShipments": "Active Shipments",
       "pendingReview": "Pending Review",
-      "readyForCeisa": "Ready for CEISA Submission",
-      "autoApprovalRate": "Auto-Approval Rate"
-    }
+      "readyForCeisa": "Ready for CEISA",
+      "submitted": "Submitted to CEISA",
+      "critical": "Critical Shipments",
+      "avgReadiness": "Avg Readiness",
+      "allStatus": "all statuses",
+      "awaitingDecision": "awaiting operator decision",
+      "awaitingSubmit": "payload ready to submit",
+      "submittedSppb": "submitted + SPPB",
+      "needsAttention": "needs immediate attention",
+      "aiConfidence": "AI confidence score"
+    },
+    "pipeline": "Pipeline Status",
+    "recentShipments": "Recent Shipments",
+    "viewAll": "View all",
+    "riskRadar": "Risk Radar",
+    "criticalAlert": "critical shipments need immediate attention",
+    "recentActivity": "Recent Activity",
+    "extractionQuality": "AI Extraction Quality",
+    "autoApproved": "Auto-Approved",
+    "needsReview": "Needs Review",
+    "documentTypes": "Document Types",
+    "quickActions": "Quick Actions",
+    "noActivity": "No recent activity",
+    "aiInsight": "AI Insight",
+    "thresholds": "Auto-approve threshold: 85% · Recommended: 70% · Review: <70%"
   },
   "documents": {
     "title": "Document Processing",

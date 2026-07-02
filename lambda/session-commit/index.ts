@@ -39,11 +39,10 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
               detected_type, detected_category, action,
               matched_shipment_id, match_confidence, analysis_detail
        FROM upload_session_files
-       WHERE session_id = $1 AND action NOT IN ('DUPLICATE', 'SKIP') AND committed_document_id IS NULL`,
+       WHERE session_id = $1 AND action NOT IN ('DUPLICATE', 'SKIP')`,
       [sessionId]
     );
 
-    console.log('[SessionCommit] files found:', files.length, files.map((f:any) => ({id:f.id, action:f.action, committed:f.committed_document_id})));
     const committed: string[] = [];
 
     const shipmentIds: string[] = [];
@@ -143,7 +142,6 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
     await client.query('COMMIT');
 
     // 9. Trigger pipeline for each committed document (async, post-commit)
-    console.log('[SessionCommit] triggering pipeline for', committed.length, 'docs, TRIGGER_FN:', process.env.TRIGGER_PIPELINE_FUNCTION_NAME);
     for (const docId of committed) {
       try {
         await lambda.send(new InvokeCommand({
@@ -152,7 +150,7 @@ export const handler: Handler<CommitEvent> = async ({ sessionId, tenantId, userI
           Payload: Buffer.from(JSON.stringify({ documentId: docId, tenantId })),
         }));
       } catch (e) {
-        console.error('[SessionCommit] pipeline trigger FAILED for', docId, JSON.stringify(e));
+        console.warn('[SessionCommit] pipeline trigger failed for', docId, e);
       }
     }
 

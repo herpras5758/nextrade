@@ -10,8 +10,8 @@ import { useTenant } from "../../store/tenantContext";
 import { DryRunPreview, SessionFile } from "./DryRunPreview";
 
 const STEPS = [
-  { id: 1, label: "Upload File", icon: Upload },
-  { id: 2, label: "Analisis AI", icon: Loader },
+  { id: 1, label: "Upload Files", icon: Upload },
+  { id: 2, label: "AI Analysis", icon: Loader },
   { id: 3, label: "Preview", icon: BarChart2 },
   { id: 4, label: "Review & Validasi", icon: FileCheck },
   { id: 5, label: "Draft BC 2.3", icon: FileText },
@@ -153,7 +153,7 @@ export function UploadWorkflowPage() {
   return (
     <div className="page-container max-w-none">
       <div className="mb-4">
-        <h1 className="page-title">Upload & Proses Dokumen</h1>
+        <h1 className="page-title">Upload & Process Documents</h1>
         <p className="page-subtitle">End-to-end: dari upload hingga siap kirim ke CEISA</p>
       </div>
 
@@ -190,12 +190,12 @@ export function UploadWorkflowPage() {
         <div className="grid grid-cols-3 gap-4">
           <div className="col-span-2 card">
             <div className="card-header">
-              <span className="section-title">Upload Dokumen</span>
+              <span className="section-title">Upload Documents</span>
             </div>
             <div className="p-4">
               {/* Tabs */}
               <div className="flex border-b border-surface-border mb-4">
-                {["Upload File", "Upload per File", "1 Shipment dalam 1 Dokumen"].map((t, i) => (
+                {["Single Upload", "Upload per File", "1 Shipment per Session"].map((t, i) => (
                   <button key={t} className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${i === 0 ? "border-[#1B4FD8] text-[#1B4FD8]" : "border-transparent text-surface-muted hover:text-surface-text"}`}>
                     {t}
                   </button>
@@ -274,7 +274,7 @@ export function UploadWorkflowPage() {
 
           {/* Config panel */}
           <div className="card">
-            <div className="card-header"><span className="section-title">Opsi Upload</span></div>
+            <div className="card-header"><span className="section-title">Upload Options</span></div>
             <div className="p-4 space-y-3">
               <div>
                 <label className="input-label">Tipe Shipment</label>

@@ -221,8 +221,8 @@ export class PipelineStack extends cdk.Stack {
     const triggerFn = new lambdaNode.NodejsFunction(this, "TriggerPipelineFn", {
       functionName: "nextrade-trigger-pipeline",
       runtime: lambda.Runtime.NODEJS_20_X,
-      timeout: cdk.Duration.seconds(120),  // Bedrock PDF extraction needs up to 2 min
-      memorySize: 512,  // PDF processing needs more memory
+      timeout: cdk.Duration.seconds(300),  // PDF splitting + AI extraction up to 5 min
+      memorySize: 1024,  // PDF-lib splitting needs more memory
       entry: path.join(backendRoot, "lambda/trigger-pipeline/index.ts"),
       environment: {
         STATE_MACHINE_ARN: this.stateMachine.stateMachineArn,
@@ -233,7 +233,7 @@ export class PipelineStack extends cdk.Stack {
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [props.dbSecurityGroup],
-      bundling: { externalModules: ["@aws-sdk/*"] },
+      bundling: { externalModules: ["@aws-sdk/*"], nodeModules: ["pg", "pdf-lib"] },
     });
     this.stateMachine.grantStartExecution(triggerFn);
     triggerFn.addToRolePolicy(
@@ -305,7 +305,7 @@ export class PipelineStack extends cdk.Stack {
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [props.dbSecurityGroup],
-      bundling: { externalModules: ["@aws-sdk/*"], nodeModules: ["pg"] },
+      bundling: { externalModules: ["@aws-sdk/*"], nodeModules: ["pg", "pdf-lib"] },
       environment: {
         DB_SECRET_ARN: props.dbSecretArn,
         DOCUMENTS_BUCKET_NAME: props.documentsBucket.bucketName,

@@ -33,8 +33,8 @@ i18n.use(initReactI18next).init({
     id: { translation: id },
     en: { translation: en },
   },
-  lng: undefined, // set explicitly after user/tenant profile loads
-  fallbackLng: "id",
+  lng: "en",  // English as default — user can switch to ID from topbar
+  fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
 

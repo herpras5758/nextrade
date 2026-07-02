@@ -1,212 +1,232 @@
 import { FastifyInstance } from 'fastify';
 import { withTenant } from '../db/pool.js';
 import { assertTenantAccess } from '../middleware/auth.js';
-import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-
-const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION ?? 'ap-southeast-3' });
-
-// 9 Checkpoint definitions — config-driven per Rule #4
-const CHECKPOINTS = [
-  { id: 1, code: 'INVOICE_FOUND',     label: 'Invoice ditemukan dan ter-ekstraksi',           weight: 15 },
-  { id: 2, code: 'PACKING_LIST_MATCH',label: 'Packing List cocok dengan Invoice (item match)', weight: 15 },
-  { id: 3, code: 'BL_FOUND',          label: 'Bill of Lading ditemukan',                       weight: 15 },
-  { id: 4, code: 'PO_CONSISTENT',     label: 'Nomor PO konsisten antar dokumen',               weight: 10 },
-  { id: 5, code: 'HS_CODE_COMPLETE',  label: 'HS Code lengkap di semua item',                  weight: 15 },
-  { id: 6, code: 'CIF_CONFIRMED',     label: 'Nilai CIF terkonfirmasi',                        weight: 10 },
-  { id: 7, code: 'NPWP_VALID',        label: 'NPWP importir valid (confidence ≥ 85%)',         weight: 10 },
-  { id: 8, code: 'KANTOR_PABEAN',     label: 'Kantor pabean teridentifikasi',                  weight: 5  },
-  { id: 9, code: 'NO_CONFLICTS',      label: 'Tidak ada konflik antar dokumen',                weight: 5  },
-];
 
 export async function ceisaReadinessRoutes(app: FastifyInstance) {
 
-  // GET /tenants/:id/shipments/:sid/ceisa-readiness
-  app.get<{ Params: { tenantId: string; shipmentId: string } }>(
-    '/tenants/:tenantId/shipments/:shipmentId/ceisa-readiness',
-    async (req, reply) => {
-      const { tenantId, shipmentId } = req.params;
-      assertTenantAccess(req.auth!, tenantId);
+  app.get('/tenants/:tenantId/shipments/:shipmentId/ceisa-readiness', async (req, reply) => {
+    const { tenantId, shipmentId } = req.params as any;
+    assertTenantAccess(req.auth!, tenantId);
 
-      return withTenant(tenantId, async (client) => {
-        // Load shipment + documents + ctdm_fields
-        const { rows: docs } = await client.query(
-          `SELECT id, document_type, category, status FROM documents
-           WHERE shipment_id = $1 AND tenant_id = $2`,
-          [shipmentId, tenantId]
+    return withTenant(tenantId, async (client) => {
+      // Load all extracted fields
+      const { rows: fields } = await client.query(
+        `SELECT cf.field_key, cf.resolved_value, cf.confidence, cf.status, cf.document_id,
+                d.document_type
+         FROM ctdm_fields cf
+         JOIN documents d ON d.id = cf.document_id
+         WHERE cf.shipment_id = $1 AND cf.tenant_id = $2`,
+        [shipmentId, tenantId]
+      );
+
+      // Load documents
+      const { rows: docs } = await client.query(
+        `SELECT document_type, status, COUNT(*) as cnt
+         FROM documents
+         WHERE shipment_id = $1 AND tenant_id = $2
+         GROUP BY document_type, status`,
+        [shipmentId, tenantId]
+      );
+
+      // Load mandatory CEISA fields config
+      const { rows: mandatoryFields } = await client.query(
+        `SELECT dfc.doc_type_code, dfc.field_key, dfc.display_name, dfc.ceisa_field_ref
+         FROM tenant_doc_field_config dfc
+         WHERE dfc.tenant_id = $1 AND dfc.is_mandatory_ceisa = true AND dfc.is_enabled = true`,
+        [tenantId]
+      );
+
+      // Load validation errors
+      const { rows: errors } = await client.query(
+        `SELECT field_key, COUNT(*) as cnt FROM validation_errors
+         WHERE shipment_id = $1 AND tenant_id = $2 AND resolved = false
+         GROUP BY field_key`,
+        [shipmentId, tenantId]
+      );
+
+      // Build field lookup
+      const fieldMap: Record<string, any> = {};
+      for (const f of fields) {
+        const key = `${f.document_type}:${f.field_key}`;
+        if (!fieldMap[key] || f.confidence > fieldMap[key].confidence) {
+          fieldMap[key] = f;
+        }
+        // Also store by field_key only (for cross-doc lookup)
+        if (!fieldMap[f.field_key] || f.confidence > (fieldMap[f.field_key]?.confidence ?? 0)) {
+          fieldMap[f.field_key] = f;
+        }
+      }
+
+      const docTypes = new Set(docs.map((d: any) => d.document_type));
+      const extractedDocs = docs.filter((d: any) => d.status === 'extracted');
+      const errorKeys = new Set(errors.map((e: any) => e.field_key));
+
+      // Helper: check if field exists with sufficient confidence
+      function hasField(key: string, minConf = 0.70): boolean {
+        const f = fieldMap[key];
+        return f?.resolved_value && parseFloat(f.confidence) >= minConf;
+      }
+
+      // ── 9 CEISA Checkpoints ─────────────────────────────────────────────
+      const checkpoints = [
+        {
+          id: 1,
+          name: 'Invoice Ditemukan & Terekstrak',
+          description: 'Commercial Invoice tersedia dan field utama terekstrak',
+          status: docTypes.has('COMMERCIAL_INVOICE') && hasField('invoice_number') && hasField('total_fob')
+            ? 'PASS' : docTypes.has('COMMERCIAL_INVOICE') ? 'WARN' : 'FAIL',
+          detail: hasField('invoice_number')
+            ? `Invoice ${fieldMap['invoice_number']?.resolved_value} · FOB ${fieldMap['total_fob']?.resolved_value ?? 'belum ada'}`
+            : 'Invoice tidak ditemukan atau field utama belum terekstrak',
+        },
+        {
+          id: 2,
+          name: 'Packing List Cocok dengan Invoice',
+          description: 'Packing List tersedia dan berat/kemasan konsisten dengan Invoice',
+          status: docTypes.has('PACKING_LIST') && hasField('total_gross_weight_kg') && hasField('total_packages')
+            ? 'PASS' : docTypes.has('PACKING_LIST') ? 'WARN' : 'FAIL',
+          detail: hasField('total_gross_weight_kg')
+            ? `${fieldMap['total_packages']?.resolved_value} kemasan · ${fieldMap['total_gross_weight_kg']?.resolved_value} KG`
+            : 'Packing List tidak ditemukan atau field berat/kemasan belum ada',
+        },
+        {
+          id: 3,
+          name: 'Bill of Lading Valid',
+          description: 'B/L tersedia dengan nomor, vessel, dan pelabuhan',
+          status: docTypes.has('BILL_OF_LADING') && hasField('bl_number') && hasField('vessel_name')
+            ? 'PASS' : docTypes.has('BILL_OF_LADING') ? 'WARN' : 'FAIL',
+          detail: hasField('bl_number')
+            ? `B/L ${fieldMap['bl_number']?.resolved_value} · Kapal: ${fieldMap['vessel_name']?.resolved_value ?? '-'}`
+            : 'Bill of Lading tidak ditemukan atau nomor B/L belum ada',
+        },
+        {
+          id: 4,
+          name: 'HS Code Tersedia',
+          description: 'HS Code pos tarif sudah ada untuk semua item',
+          status: hasField('hs_codes', 0.60) || hasField('items', 0.60)
+            ? 'PASS' : errorKeys.has('hs_codes') ? 'FAIL' : 'WARN',
+          detail: hasField('hs_codes')
+            ? `HS Codes terekstrak (confidence ${Math.round(parseFloat(fieldMap['hs_codes']?.confidence ?? 0) * 100)}%)`
+            : 'HS Code belum ada — diperlukan untuk klasifikasi tarif',
+        },
+        {
+          id: 5,
+          name: 'Nilai CIF Tersedia',
+          description: 'Nilai CIF dalam USD dan IDR sudah ada',
+          status: (hasField('nilai_cif_usd') || hasField('total_fob')) && hasField('kurs', 0.60)
+            ? 'PASS' : hasField('total_fob') ? 'WARN' : 'FAIL',
+          detail: hasField('nilai_cif_usd')
+            ? `CIF USD: ${fieldMap['nilai_cif_usd']?.resolved_value} · Kurs: ${fieldMap['kurs']?.resolved_value ?? '-'}`
+            : hasField('total_fob')
+            ? `FOB tersedia (${fieldMap['total_fob']?.resolved_value}) — freight/asuransi belum ada`
+            : 'Nilai CIF belum ada',
+        },
+        {
+          id: 6,
+          name: 'Data Pengirim & Penerima Lengkap',
+          description: 'Nama supplier dan consignee tersedia di Invoice atau B/L',
+          status: hasField('supplier_name') && (hasField('consignee_name') || hasField('nama_importir'))
+            ? 'PASS' : hasField('supplier_name') || hasField('consignee_name') ? 'WARN' : 'FAIL',
+          detail: hasField('supplier_name')
+            ? `Supplier: ${fieldMap['supplier_name']?.resolved_value?.slice(0, 40)} · Consignee: ${(fieldMap['consignee_name'] ?? fieldMap['nama_importir'])?.resolved_value?.slice(0, 30) ?? 'belum ada'}`
+            : 'Data pengirim/penerima belum ada',
+        },
+        {
+          id: 7,
+          name: 'NPWP Importir Terverifikasi',
+          description: 'NPWP importir tersedia dengan confidence tinggi (≥85%)',
+          status: hasField('consignee_npwp', 0.85) || hasField('npwp_importir', 0.85)
+            ? 'PASS' : hasField('consignee_npwp', 0.60) || hasField('npwp_importir', 0.60) ? 'WARN' : 'FAIL',
+          detail: (() => {
+            const npwp = fieldMap['consignee_npwp'] ?? fieldMap['npwp_importir'];
+            if (!npwp) return 'NPWP tidak ditemukan — wajib untuk CEISA';
+            const conf = Math.round(parseFloat(npwp.confidence) * 100);
+            return `NPWP: ${npwp.resolved_value} · Confidence: ${conf}%${conf < 85 ? ' (perlu verifikasi manual)' : ''}`;
+          })(),
+        },
+        {
+          id: 8,
+          name: 'Dokumen Tidak Ada Konflik',
+          description: 'Tidak ada konflik nilai antar dokumen yang belum diresolusi',
+          status: errors.length === 0 ? 'PASS' : errors.length <= 2 ? 'WARN' : 'FAIL',
+          detail: errors.length === 0
+            ? 'Semua field konsisten antar dokumen'
+            : `${errors.length} konflik field belum diresolusi: ${errors.map((e: any) => e.field_key).join(', ')}`,
+        },
+        {
+          id: 9,
+          name: 'Semua Dokumen Wajib Tersedia',
+          description: 'Invoice, Packing List, dan B/L semua telah diekstrak',
+          status: extractedDocs.some((d: any) => d.document_type === 'COMMERCIAL_INVOICE')
+            && extractedDocs.some((d: any) => d.document_type === 'PACKING_LIST')
+            && extractedDocs.some((d: any) => d.document_type === 'BILL_OF_LADING')
+            ? 'PASS'
+            : extractedDocs.length > 0 ? 'WARN' : 'FAIL',
+          detail: `Dokumen terekstrak: ${extractedDocs.map((d: any) => d.document_type).join(', ') || 'belum ada'}`,
+        },
+      ];
+
+      const passed = checkpoints.filter(c => c.status === 'PASS').length;
+      const warned = checkpoints.filter(c => c.status === 'WARN').length;
+      const failed = checkpoints.filter(c => c.status === 'FAIL').length;
+      const score = Math.round((passed / checkpoints.length) * 100);
+
+      const overallStatus = failed === 0 && warned === 0 ? 'READY'
+        : failed === 0 ? 'NEARLY_READY'
+        : failed <= 2 ? 'NEEDS_ATTENTION'
+        : 'NOT_READY';
+
+      // Generate AI reasoning if OpenAI configured
+      let reasoning = {
+        summary: overallStatus === 'READY' ? 'Semua checkpoint terpenuhi — siap untuk submit ke CEISA'
+          : overallStatus === 'NEARLY_READY' ? `Hampir siap — ${warned} checkpoint perlu perhatian`
+          : `Belum siap — ${failed} checkpoint gagal`,
+        recommendation: overallStatus === 'READY'
+          ? 'Dapat dilanjutkan ke Draft BC 2.3 dan submit ke CEISA'
+          : `Selesaikan ${failed} checkpoint yang gagal: ${checkpoints.filter(c => c.status === 'FAIL').map(c => c.name).join(', ')}`,
+      };
+
+      try {
+        const { rows: [aiCfg] } = await client.query(
+          `SELECT extraction_model_id, openai_api_key, ai_provider FROM tenant_ai_config WHERE tenant_id = $1`,
+          [tenantId]
         );
+        if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
+          const prompt = `Analisis CEISA readiness berikut dan buat rekomendasi singkat (max 2 kalimat per bagian):
+Score: ${score}% | Status: ${overallStatus}
+PASS: ${checkpoints.filter(c=>c.status==='PASS').map(c=>c.name).join(', ')}
+WARN: ${checkpoints.filter(c=>c.status==='WARN').map(c=>c.name).join(', ')}
+FAIL: ${checkpoints.filter(c=>c.status==='FAIL').map(c=>c.name).join(', ')}
+Missing: ${mandatoryFields.filter(mf => !hasField(mf.field_key, 0.60)).map(mf=>mf.display_name).join(', ')}
 
-        const { rows: fields } = await client.query(
-          `SELECT field_key, resolved_value, confidence FROM ctdm_fields
-           WHERE shipment_id = $1 AND tenant_id = $2`,
-          [shipmentId, tenantId]
-        );
+Jawab JSON: {"summary":"...","recommendation":"..."}`;
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiCfg.openai_api_key}` },
+            body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 256,
+              messages: [{ role: 'user', content: prompt }] }),
+          });
+          const data = await res.json() as any;
+          const text = data.choices?.[0]?.message?.content ?? '{}';
+          const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+          if (parsed.summary) reasoning = parsed;
+        }
+      } catch {}
 
-        const { rows: errors } = await client.query(
-          `SELECT field_key, expected_value, actual_value FROM validation_errors
-           WHERE shipment_id = $1 AND resolved = false`,
-          [shipmentId]
-        );
-
-        const fieldMap = new Map(fields.map((f: any) => [f.field_key, f]));
-        const docTypes = new Set(docs.map((d: any) => d.document_type?.toLowerCase()));
-        const hasErrors = errors.length > 0;
-
-        // Evaluate each checkpoint
-        const results = CHECKPOINTS.map(cp => {
-          let status: 'PASS' | 'WARN' | 'FAIL' | 'NA' = 'NA';
-          let detail = '';
-          let confidence = 0;
-
-          switch (cp.code) {
-            case 'INVOICE_FOUND': {
-              const inv = fields.find((f: any) => f.field_key === 'invoice_number');
-              if (inv && inv.confidence >= 0.85) { status = 'PASS'; confidence = inv.confidence; detail = `Invoice ${inv.resolved_value}`; }
-              else if (inv) { status = 'WARN'; confidence = inv.confidence; detail = `Confidence rendah: ${Math.round(inv.confidence * 100)}%`; }
-              else { status = 'FAIL'; detail = 'Invoice tidak ditemukan'; }
-              break;
-            }
-            case 'PACKING_LIST_MATCH': {
-              const hasPL = docs.some((d: any) => d.document_type?.includes('Packing'));
-              status = hasPL ? 'PASS' : 'FAIL';
-              detail = hasPL ? 'Packing List ditemukan dan cocok' : 'Packing List belum ada';
-              break;
-            }
-            case 'BL_FOUND': {
-              const bl = fieldMap.get('bl_number');
-              if (bl && bl.confidence >= 0.85) { status = 'PASS'; confidence = bl.confidence; detail = `B/L ${bl.resolved_value}`; }
-              else if (bl) { status = 'WARN'; confidence = bl.confidence; detail = `Confidence B/L: ${Math.round(bl.confidence * 100)}%`; }
-              else { status = 'FAIL'; detail = 'Bill of Lading belum ditemukan'; }
-              break;
-            }
-            case 'PO_CONSISTENT': {
-              const po = fieldMap.get('po_number');
-              status = po ? (hasErrors ? 'WARN' : 'PASS') : 'NA';
-              detail = po ? (hasErrors ? 'Ada ketidakcocokan PO antar dokumen' : `PO ${po.resolved_value} konsisten`) : 'PO tidak terdeteksi';
-              break;
-            }
-            case 'HS_CODE_COMPLETE': {
-              const hs = fieldMap.get('hs_code');
-              if (hs && hs.confidence >= 0.85) { status = 'PASS'; confidence = hs.confidence; detail = `HS Code ${hs.resolved_value}`; }
-              else if (hs) { status = 'WARN'; confidence = hs.confidence; detail = `HS Code confidence: ${Math.round(hs.confidence * 100)}%`; }
-              else { status = 'FAIL'; detail = 'HS Code belum teridentifikasi'; }
-              break;
-            }
-            case 'CIF_CONFIRMED': {
-              const cif = fieldMap.get('cif_value') ?? fieldMap.get('total_value');
-              if (cif && cif.confidence >= 0.80) { status = 'PASS'; confidence = cif.confidence; detail = `CIF ${cif.resolved_value}`; }
-              else if (cif) { status = 'WARN'; confidence = cif.confidence; detail = `Nilai CIF confidence: ${Math.round(cif.confidence * 100)}%`; }
-              else { status = 'FAIL'; detail = 'Nilai CIF belum terkonfirmasi'; }
-              break;
-            }
-            case 'NPWP_VALID': {
-              const npwp = fieldMap.get('npwp_importir') ?? fieldMap.get('npwp');
-              if (npwp && npwp.confidence >= 0.85) { status = 'PASS'; confidence = npwp.confidence; detail = `NPWP ${npwp.resolved_value}`; }
-              else if (npwp) { status = 'WARN'; confidence = npwp.confidence; detail = `NPWP confidence: ${Math.round(npwp.confidence * 100)}%`; }
-              else { status = 'WARN'; detail = 'NPWP belum terverifikasi'; }
-              break;
-            }
-            case 'KANTOR_PABEAN': {
-              const kantor = fieldMap.get('kd_kantor_pabean') ?? fieldMap.get('kantor_pabean');
-              status = kantor ? 'PASS' : 'WARN';
-              detail = kantor ? `Kantor: ${kantor.resolved_value}` : 'Kantor pabean belum teridentifikasi';
-              break;
-            }
-            case 'NO_CONFLICTS': {
-              status = hasErrors ? 'FAIL' : 'PASS';
-              detail = hasErrors ? `${errors.length} konflik antar dokumen` : 'Tidak ada konflik';
-              break;
-            }
-          }
-
-          return { ...cp, status, detail, confidence: Math.round(confidence * 100) };
-        });
-
-        const passCount = results.filter(r => r.status === 'PASS').length;
-        const failCount = results.filter(r => r.status === 'FAIL').length;
-        const warnCount = results.filter(r => r.status === 'WARN').length;
-        const score = results.reduce((acc, r) => acc + (r.status === 'PASS' ? r.weight : r.status === 'WARN' ? r.weight * 0.5 : 0), 0);
-        const isReadyForCeisa = failCount === 0 && score >= 85;
-
-        // AI reasoning — concise, actionable
-        const reasoning = buildReasoning(results, score, isReadyForCeisa);
-
-        return {
-          shipment_id: shipmentId,
-          score: Math.round(score),
-          is_ready: isReadyForCeisa,
-          pass: passCount, warn: warnCount, fail: failCount,
-          checkpoints: results,
-          reasoning,
-          ai_summary: reasoning.summary,
-        };
-      });
-    }
-  );
-
-  // POST /tenants/:id/shipments/:sid/nomor-aju — generate nomor AJU
-  app.post<{ Params: { tenantId: string; shipmentId: string } }>(
-    '/tenants/:tenantId/shipments/:shipmentId/nomor-aju',
-    async (req, reply) => {
-      const { tenantId, shipmentId } = req.params;
-      assertTenantAccess(req.auth!, tenantId);
-
-      return withTenant(tenantId, async (client) => {
-        // Load tenant config
-        const { rows: [tenant] } = await client.query(
-          `SELECT config FROM tenants WHERE id = $1`, [tenantId]
-        );
-        const config = tenant?.config ?? {};
-        const kodePabean = config.kode_kantor_pabean ?? '000000';
-        const kodeTpb    = config.kode_tpb            ?? 'TPB000';
-
-        // Sequence per tenant per year
-        const now = new Date();
-        const yy = now.getFullYear().toString();
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const dd = String(now.getDate()).padStart(2, '0');
-
-        const { rows: [seqRow] } = await client.query(
-          `SELECT COALESCE(MAX(CAST(SUBSTRING(nomor_aju FROM '.{6}$') AS INT)), 0) + 1 as next_seq
-           FROM ctdm_fields
-           WHERE tenant_id = $1 AND field_key = 'nomor_aju'
-             AND resolved_value LIKE $2`,
-          [tenantId, `%${yy}%`]
-        );
-        const seq = String(seqRow?.next_seq ?? 1).padStart(6, '0');
-        const nomorAju = `${kodePabean}${kodeTpb}${dd}${mm}${yy}${seq}`;
-
-        // Store in ctdm_fields
-        await client.query(
-          `INSERT INTO ctdm_fields (tenant_id, shipment_id, field_key, resolved_value, confidence, status)
-           VALUES ($1,$2,'nomor_aju',$3,1.0,'auto_approved')
-           ON CONFLICT DO NOTHING`,
-          [tenantId, shipmentId, nomorAju]
-        );
-
-        return { nomor_aju: nomorAju, kode_kantor_pabean: kodePabean, kode_tpb: kodeTpb };
-      });
-    }
-  );
-}
-
-function buildReasoning(results: any[], score: number, isReady: boolean) {
-  const passed = results.filter(r => r.status === 'PASS').map(r => r.label);
-  const failed = results.filter(r => r.status === 'FAIL').map(r => r.label);
-  const warned = results.filter(r => r.status === 'WARN').map(r => r.label);
-
-  const summary = isReady
-    ? `Shipment siap dikirim ke CEISA. Semua ${passed.length} checkpoint kritis terpenuhi dengan skor ${Math.round(score)}%.`
-    : failed.length > 0
-      ? `Belum siap ke CEISA. ${failed.length} checkpoint gagal: ${failed.slice(0, 2).join(', ')}${failed.length > 2 ? ` dan ${failed.length - 2} lainnya` : ''}.`
-      : `Hampir siap. Skor ${Math.round(score)}% — ${warned.length} checkpoint perlu perhatian.`;
-
-  return {
-    summary,
-    passed_items: passed,
-    failed_items: failed,
-    warned_items: warned,
-    recommendation: isReady
-      ? 'Semua dokumen telah diverifikasi AI. Operator dapat melanjutkan ke submit CEISA.'
-      : `Selesaikan ${failed.length + warned.length} item sebelum submit ke CEISA untuk menghindari penolakan DJBC.`,
-  };
+      return {
+        shipmentId,
+        score,
+        overallStatus,
+        checkpoints,
+        reasoning,
+        summary: {
+          pass: passed, warn: warned, fail: failed,
+          totalFields: fields.length,
+          mandatoryFieldsMissing: mandatoryFields.filter(mf =>
+            !hasField(mf.field_key, 0.60)
+          ).map(mf => ({ ...mf, docType: mf.doc_type_code })),
+        },
+      };
+    });
+  });
 }

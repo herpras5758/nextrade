@@ -141,3 +141,30 @@ export async function ceisaSubmitRoutes(app: FastifyInstance) {
     }
   );
 }
+
+  // GET draft BC 2.3 payload preview
+  app.get('/tenants/:tenantId/shipments/:shipmentId/ceisa-draft', async (req, reply) => {
+    const { tenantId, shipmentId } = req.params as any;
+    assertTenantAccess(req.auth!, tenantId);
+    return withTenant(tenantId, async (client) => {
+      try {
+        const payload = await mapBC23Payload(client, shipmentId, tenantId);
+        return { success: true, payload };
+      } catch (err: any) {
+        return reply.code(422).send({ success: false, error: err.message });
+      }
+    });
+  });
+
+  // PUT mark shipment ready for CEISA
+  app.put('/tenants/:tenantId/shipments/:shipmentId/mark-ready', async (req, reply) => {
+    const { tenantId, shipmentId } = req.params as any;
+    assertTenantAccess(req.auth!, tenantId);
+    return withTenant(tenantId, async (client) => {
+      const { rows: [s] } = await client.query(
+        `UPDATE shipments SET status = 'READY_FOR_CEISA' WHERE id = $1 AND tenant_id = $2 RETURNING *`,
+        [shipmentId, tenantId]
+      );
+      return s;
+    });
+  });

@@ -39,8 +39,11 @@ export async function adminConfigRoutes(app: FastifyInstance) {
         `INSERT INTO tenant_ai_config
            (tenant_id, bedrock_model_id, max_tokens, temperature,
             threshold_auto_approved, threshold_recommended,
-            ceisa_mode, ceisa_endpoint, ceisa_api_key, last_event_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            ceisa_mode, ceisa_endpoint, ceisa_api_key,
+            ai_provider, openai_api_key,
+            extraction_model_id, extraction_max_tokens,
+            last_event_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          ON CONFLICT (tenant_id) DO UPDATE SET
            bedrock_model_id = EXCLUDED.bedrock_model_id,
            max_tokens = EXCLUDED.max_tokens,
@@ -50,12 +53,21 @@ export async function adminConfigRoutes(app: FastifyInstance) {
            ceisa_mode = EXCLUDED.ceisa_mode,
            ceisa_endpoint = EXCLUDED.ceisa_endpoint,
            ceisa_api_key = EXCLUDED.ceisa_api_key,
+           ai_provider = EXCLUDED.ai_provider,
+           openai_api_key = EXCLUDED.openai_api_key,
+           extraction_model_id = EXCLUDED.extraction_model_id,
+           extraction_max_tokens = EXCLUDED.extraction_max_tokens,
            updated_at = NOW(), last_event_id = EXCLUDED.last_event_id
          RETURNING *`,
         [tenantId, body.bedrock_model_id, body.max_tokens, body.temperature,
          body.threshold_auto_approved, body.threshold_recommended,
          body.ceisa_mode, body.ceisa_endpoint ?? null,
-         body.ceisa_api_key ?? null, evt.id]
+         body.ceisa_api_key ?? null,
+         body.ai_provider ?? 'openai',
+         body.openai_api_key ?? null,
+         body.extraction_model_id ?? 'gpt-4o',
+         body.extraction_max_tokens ?? 4096,
+         evt.id]
       );
       return cfg;
     });
@@ -296,3 +308,30 @@ export async function adminConfigRoutes(app: FastifyInstance) {
     });
   });
 }
+
+  // GET tenant config
+  app.get('/tenants/:tenantId/config', async (req, reply) => {
+    const { tenantId } = req.params as { tenantId: string };
+    assertTenantAccess(req.auth!, tenantId);
+    return withTenant(tenantId, async (client) => {
+      const { rows: [tenant] } = await client.query(
+        `SELECT config FROM tenants WHERE id = $1`, [tenantId]
+      );
+      return { config: tenant?.config ?? {} };
+    });
+  });
+
+  // PUT tenant config
+  app.put('/tenants/:tenantId/config', async (req, reply) => {
+    const { tenantId } = req.params as { tenantId: string };
+    assertTenantAccess(req.auth!, tenantId);
+    if (!req.auth!.roles.includes('admin')) return reply.code(403).send({ error: 'Admin only' });
+    const body = req.body as any;
+    return withTenant(tenantId, async (client) => {
+      const { rows: [tenant] } = await client.query(
+        `UPDATE tenants SET config = config || $1::jsonb WHERE id = $2 RETURNING config`,
+        [JSON.stringify(body.config ?? {}), tenantId]
+      );
+      return { config: tenant?.config ?? {} };
+    });
+  });

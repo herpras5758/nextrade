@@ -88,7 +88,7 @@ export function Topbar() {
               {SUPPORTED_LANGUAGES.map((lng) => (
                 <DropdownMenu.Item key={lng} onSelect={() => i18n.changeLanguage(lng)}
                   className="cursor-pointer rounded px-3 py-1.5 text-xs text-surface-text outline-none hover:bg-surface-page">
-                  {lng === "id" ? "Bahasa Indonesia" : "English"}
+                  {lng === "id" ? "🇮🇩 Bahasa Indonesia" : "🇬🇧 English"}
                 </DropdownMenu.Item>
               ))}
             </DropdownMenu.Content>

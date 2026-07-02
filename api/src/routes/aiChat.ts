@@ -20,7 +20,7 @@ export async function aiChatRoutes(app: FastifyInstance) {
       return withTenant(tenantId, async (client) => {
         // Load accessible tenant IDs (multi-BU support)
         const tenantIds: string[] = [tenantId];
-        const claimTenantIds = req.auth!.tenantIds;
+        const claimTenantIds = (req.auth!.tenantIds ?? [];
         for (const tid of claimTenantIds) {
           if (!tenantIds.includes(tid)) tenantIds.push(tid);
         }
@@ -70,21 +70,33 @@ Jika ditanya rekomendasi bisnis, berikan analisis berdasarkan data aktual.
 Jika data tidak tersedia, katakan tegas "Data tidak tersedia di sistem."
 `.trim();
 
-        // Call Bedrock
-        const response = await bedrock.send(new InvokeModelCommand({
-          modelId: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-          contentType: 'application/json',
-          accept: 'application/json',
-          body: JSON.stringify({
-            anthropic_version: 'bedrock-2023-05-31',
-            max_tokens: 1024,
-            system: systemContext,
-            messages: [{ role: 'user', content: message }],
-          }),
-        }));
+        // Load AI config - support OpenAI or Bedrock
+        const { rows: [aiCfg] } = await client.query(
+          `SELECT extraction_model_id, openai_api_key, ai_provider FROM tenant_ai_config WHERE tenant_id = $1`,
+          [tenantId]
+        );
 
-        const parsed = JSON.parse(new TextDecoder().decode(response.body));
-        const answer = parsed.content?.[0]?.text ?? 'Maaf, tidak dapat memproses pertanyaan ini.';
+        let answer = 'Maaf, tidak dapat memproses pertanyaan ini.';
+
+        if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiCfg.openai_api_key}` },
+            body: JSON.stringify({ model: aiCfg.extraction_model_id ?? 'gpt-4o', max_tokens: 1024,
+              messages: [{ role: 'system', content: systemContext }, { role: 'user', content: message }] }),
+          });
+          const data = await res.json() as any;
+          answer = data.choices?.[0]?.message?.content ?? answer;
+        } else {
+          const response = await bedrock.send(new InvokeModelCommand({
+            modelId: aiCfg?.extraction_model_id ?? 'global.anthropic.claude-sonnet-4-6',
+            contentType: 'application/json', accept: 'application/json',
+            body: JSON.stringify({ anthropic_version: 'bedrock-2023-05-31', max_tokens: 1024,
+              system: systemContext, messages: [{ role: 'user', content: message }] }),
+          }));
+          const parsed = JSON.parse(new TextDecoder().decode(response.body));
+          answer = parsed.content?.[0]?.text ?? answer;
+        }
 
         return { answer, context_used: { shipments: shipmentsRes.rows.length, documents: docsRes.rows.length } };
       });

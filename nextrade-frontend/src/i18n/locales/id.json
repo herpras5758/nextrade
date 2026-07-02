@@ -42,14 +42,37 @@
   "dashboard": {
     "title": "Dashboard Eksekutif",
     "subtitle": "Ringkasan operasional, kepatuhan, dan risiko perdagangan",
-    "emptyState": "Belum ada aktivitas. Mulai dengan mengunggah dokumen pertama Anda.",
-    "sourceBreakdown": "Sumber Dokumen",
+    "emptyState": "Belum ada aktivitas",
+    "emptyStateDesc": "Upload dokumen shipment pertama untuk memulai proses ekstraksi dan validasi otomatis.",
+    "uploadFirst": "Upload Dokumen",
     "kpi": {
       "activeShipments": "Shipment Aktif",
       "pendingReview": "Menunggu Tinjauan",
-      "readyForCeisa": "Siap Submit CEISA",
-      "autoApprovalRate": "Tingkat Persetujuan Otomatis"
-    }
+      "readyForCeisa": "Siap CEISA",
+      "submitted": "Dikirim ke CEISA",
+      "critical": "Shipment Kritis",
+      "avgReadiness": "Rata-rata Readiness",
+      "allStatus": "semua status",
+      "awaitingDecision": "perlu keputusan operator",
+      "awaitingSubmit": "payload siap dikirim",
+      "submittedSppb": "submitted + SPPB",
+      "needsAttention": "perlu perhatian segera",
+      "aiConfidence": "confidence AI"
+    },
+    "pipeline": "Status Pipeline",
+    "recentShipments": "Shipment Terbaru",
+    "viewAll": "Lihat semua",
+    "riskRadar": "Risk Radar",
+    "criticalAlert": "shipment kritis perlu perhatian segera",
+    "recentActivity": "Aktivitas Terbaru",
+    "extractionQuality": "Kualitas Ekstraksi AI",
+    "autoApproved": "Auto-Approved",
+    "needsReview": "Perlu Review",
+    "documentTypes": "Tipe Dokumen",
+    "quickActions": "Aksi Cepat",
+    "noActivity": "Belum ada aktivitas terbaru",
+    "aiInsight": "Insight AI",
+    "thresholds": "Threshold auto-approved: 85% · Recommended: 70% · Review: <70%"
   },
   "documents": {
     "title": "Pemrosesan Dokumen",

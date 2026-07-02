@@ -156,5 +156,23 @@ export class AuthStack extends cdk.Stack {
       resources: [this.userPool.userPoolArn],
     }));
     new cdk.CfnOutput(this, "SeedDataV2FunctionName", { value: seedDataV2Fn.functionName });
+
+    // Test data seeder — realistic USG document data for QA/demo
+    const seedTestDataFn = new lambdaNode.NodejsFunction(this, "SeedTestDataFn", {
+      functionName: "nextrade-seed-test-data",
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, "../../lambda/seed-test-data/index.ts"),
+      timeout: cdk.Duration.seconds(60),
+      environment: { DB_SECRET_ARN: props.dbSecretArn },
+      vpc: props.vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      securityGroups: [props.dbSecurityGroup],
+      bundling: { externalModules: ["@aws-sdk/*"] },
+    });
+    seedTestDataFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [props.dbSecretArn],
+    }));
+    new cdk.CfnOutput(this, "SeedTestDataFunctionName", { value: seedTestDataFn.functionName });
   }
 }

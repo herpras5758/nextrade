@@ -267,7 +267,7 @@ export function Bc23WorkflowPage() {
           data={shipments}
           columns={columns}
           searchPlaceholder="Cari shipment..."
-          emptyMessage="Belum ada shipment. Upload dokumen terlebih dahulu."
+          emptyMessage="No shipments yet. Upload documents to get started."
           onRowClick={row => navigate(`/bc23/${row.id}`)}
         />
       )}

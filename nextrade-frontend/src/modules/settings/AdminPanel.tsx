@@ -11,17 +11,18 @@ import {
 } from "lucide-react";
 
 // Sections
-type Section = "ai" | "extraction" | "signals" | "validation" | "erp" | "learning" | "bc-access" | "ceisa";
+type Section = "ai" | "extraction" | "tenant" | "signals" | "validation" | "erp" | "learning" | "bc-access" | "ceisa";
 
 const NAV_ITEMS: { id: Section; label: string; icon: typeof Cpu; description: string }[] = [
-  { id: "ai",         label: "AI Engine",            icon: Cpu,       description: "Model, threshold confidence, mode CEISA" },
-  { id: "extraction", label: "Extraction Engine",    icon: Cpu,       description: "Approach, model OCR, Bedrock config" },
-  { id: "ceisa",      label: "CEISA Config",          icon: FileCheck, description: "Mode mock/live, endpoint, API key" },
-  { id: "signals",    label: "Identity Signals",      icon: Scale,     description: "Bobot sinyal, confidence tier, normalizer" },
-  { id: "validation", label: "Validation Rules",      icon: FileCheck, description: "Aturan bisnis per field, per BC type" },
-  { id: "erp",        label: "ERP Integration",       icon: Plug,      description: "SAP/Oracle/Dynamics field mapping" },
-  { id: "learning",   label: "Learning Engine",       icon: BookOpen,  description: "Review koreksi operator" },
-  { id: "bc-access",  label: "BC Type Access",        icon: Users,     description: "Aktifkan/nonaktifkan tipe BC per tenant" },
+  { id: "ai",         label: "AI Engine",            icon: Cpu,       description: "AI model, confidence thresholds, CEISA mode" },
+  { id: "extraction", label: "Extraction Engine",    icon: Cpu,       description: "Extraction approach, OCR model, provider config" },
+  { id: "tenant",     label: "Tenant Config",        icon: Users,     description: "Kode kantor pabean, TPB, kurs default" },
+  { id: "ceisa",      label: "CEISA Config",          icon: FileCheck, description: "Mock/live mode, endpoint, API key" },
+  { id: "signals",    label: "Identity Signals",      icon: Scale,     description: "Signal weights, confidence tiers, normalizers" },
+  { id: "validation", label: "Validation Rules",      icon: FileCheck, description: "Business rules per field and BC type" },
+  { id: "erp",        label: "ERP Integration",       icon: Plug,      description: "ERP field mapping (SAP/Oracle/Dynamics)" },
+  { id: "learning",   label: "Learning Engine",       icon: BookOpen,  description: "Review operator corrections" },
+  { id: "bc-access",  label: "BC Type Access",        icon: Users,     description: "Enable/disable BC types per tenant" },
 ];
 
 const BC_TYPES = [
@@ -48,7 +49,7 @@ function SaveBar({ onSave, saving, saved }: { onSave: () => void; saving: boolea
       </span>
       <button onClick={onSave} disabled={saving || saved} className="btn-primary gap-1 disabled:opacity-50">
         {saving ? <RotateCcw size={13} className="animate-spin" /> : saved ? <Check size={13} /> : <Save size={13} />}
-        {saving ? "Menyimpan..." : saved ? "Tersimpan" : "Simpan Perubahan"}
+        {saving ? "Saving..." : saved ? "Saved" : "Simpan Perubahan"}
       </button>
     </div>
   );
@@ -118,6 +119,7 @@ export function AdminPanel() {
         {/* Content */}
         <div className="flex-1 min-w-0">
           {section === "ai"         && <AiSection tenantId={currentTenant?.id ?? ""} />}
+          {section === "tenant"     && <TenantConfigSection tenantId={currentTenant?.id ?? ""} />}
           {section === "extraction" && <ExtractionSection tenantId={currentTenant?.id ?? ""} />}
           {section === "ceisa"      && <CeisaSection tenantId={currentTenant?.id ?? ""} />}
           {section === "signals"    && <SignalWeightsSection tenantId={currentTenant?.id ?? ""} />}
@@ -159,29 +161,29 @@ function AiSection({ tenantId }: { tenantId: string }) {
           <div>
             <label className="input-label">AI Provider</label>
           <select value={cfg.ai_provider ?? 'openai'}
-            onChange={e => setCfg((p:any) => ({ ...p, ai_provider: e.target.value }))}
+            onChange={e => setCfg(p => ({ ...p, ai_provider: e.target.value }))}
             className="input text-xs mb-3">
-            <option value="openai">OpenAI (GPT-4o Vision)</option>
+            <option value="openai">OpenAI (GPT-4o)</option>
             <option value="bedrock">AWS Bedrock (Claude/Nova)</option>
           </select>
 
-          {(!cfg.ai_provider || cfg.ai_provider === 'openai') && (
+          {(cfg.ai_provider === 'openai' || !cfg.ai_provider) && (
             <div className="mb-3">
               <label className="input-label">OpenAI API Key</label>
               <input type="password" value={cfg.openai_api_key ?? ''}
-                onChange={e => setCfg((p:any) => ({ ...p, openai_api_key: e.target.value }))}
+                onChange={e => setCfg(p => ({ ...p, openai_api_key: e.target.value }))}
                 className="input text-xs font-mono"
                 placeholder="sk-..." />
-              <p className="text-[11px] text-[#6B778C] mt-1">Disimpan terenkripsi di database</p>
+              <p className="text-[11px] text-[#6B778C] mt-1">API key disimpan terenkripsi di database</p>
             </div>
           )}
 
           <label className="input-label">Model ID</label>
             <select className="input text-xs" value={cfg.bedrock_model_id}
               onChange={e => { setCfg({ ...cfg, bedrock_model_id: e.target.value }); setSaved(false); }}>
-              <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (Recommended)</option>
-              <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (Faster, cheaper)</option>
-              <option value="anthropic.claude-3-opus-20240229-v1:0">Claude 3 Opus (Most capable)</option>
+              <option value="anthropic.claude-sonnet-4-6">Claude 3.5 Sonnet v2 (Recommended)</option>
+              <option value="anthropic.claude-haiku-4-5-20251001-v1:0">Claude 3.5 Haiku (Faster, cheaper)</option>
+              <option value="anthropic.claude-opus-4-6-v1">Claude 3 Opus (Most capable)</option>
             </select>
           </div>
           <div>
@@ -528,7 +530,7 @@ function ErpSection({ tenantId }: { tenantId: string }) {
           <div className="col-span-2 flex items-center gap-2">
             <input type="checkbox" id="erp-active" checked={cfg.is_active}
               onChange={e => { setCfg({ ...cfg, is_active: e.target.checked }); setSaved(false); }} />
-            <label htmlFor="erp-active" className="text-xs text-surface-text">Aktifkan ERP sync</label>
+            <label htmlFor="erp-active" className="text-xs text-surface-text">Activekan ERP sync</label>
           </div>
         </div>
       </SectionCard>
@@ -643,7 +645,7 @@ function BcAccessSection({ tenantId }: { tenantId: string }) {
 function ExtractionSection({ tenantId }: { tenantId: string }) {
   const [config, setConfig] = useState({
     extraction_approach: 'bedrock_vision',
-    extraction_model_id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    extraction_model_id: 'anthropic.claude-sonnet-4-6',
     extraction_max_tokens: 4096,
     extraction_max_pages: 20,
     source_resolution_mode: 'confidence_weighted',
@@ -674,9 +676,9 @@ function ExtractionSection({ tenantId }: { tenantId: string }) {
   ];
 
   const MODELS = [
-    { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2 (Recommended — akurasi tertinggi)' },
-    { value: 'anthropic.claude-3-5-haiku-20241022-v1:0',  label: 'Claude 3.5 Haiku (Lebih cepat, biaya lebih rendah)' },
-    { value: 'anthropic.claude-3-opus-20240229-v1:0',     label: 'Claude 3 Opus (Dokumen sangat kompleks)' },
+    { value: 'anthropic.claude-sonnet-4-6', label: 'Claude 3.5 Sonnet v2 (Recommended — akurasi tertinggi)' },
+    { value: 'anthropic.claude-haiku-4-5-20251001-v1:0',  label: 'Claude 3.5 Haiku (Lebih cepat, biaya lebih rendah)' },
+    { value: 'anthropic.claude-opus-4-6-v1',     label: 'Claude 3 Opus (Dokumen sangat kompleks)' },
   ];
 
   const ALL_SIGNALS = ['INVOICE_NUMBER','BL_NUMBER','PO_NUMBER','CONTAINER_NUMBER','BC_NUMBER','BC11_NUMBER','SUPPLIER_NAME'];
@@ -759,7 +761,7 @@ function ExtractionSection({ tenantId }: { tenantId: string }) {
 
         {/* Identity signals */}
         <div>
-          <label className="input-label mb-2 block">Identity Signals Aktif</label>
+          <label className="input-label mb-2 block">Identity Signals Active</label>
           <div className="flex flex-wrap gap-2">
             {ALL_SIGNALS.map(sig => {
               const active = config.identity_signals_active.includes(sig);
@@ -782,11 +784,11 @@ function ExtractionSection({ tenantId }: { tenantId: string }) {
         </div>
 
         <div className="ai-panel text-xs">
-          <strong>Konfigurasi aktif:</strong> {config.extraction_approach} · {config.extraction_model_id.split('.')[1]} · max {config.extraction_max_tokens} tokens
+          <strong>Active config:</strong> {config.extraction_approach} · {config.extraction_model_id.split('.')[1]} · max {config.extraction_max_tokens} tokens
         </div>
 
         <button onClick={save} disabled={saving} className="btn-primary gap-1">
-          {saved ? '✅ Tersimpan' : saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+          {saved ? '✅ Saved' : saving ? 'Saving...' : 'Save Configuration'}
         </button>
 
         <div className="mt-6 pt-6 border-t border-[#DFE1E6]">
@@ -798,6 +800,72 @@ function ExtractionSection({ tenantId }: { tenantId: string }) {
           <DocTypeManager tenantId={tenantId} />
         </div>
       </div>
+    </SectionCard>
+  );
+}
+
+// ── Tenant Config Section ─────────────────────────────────────────────────────
+function TenantConfigSection({ tenantId }: { tenantId: string }) {
+  const [config, setConfig] = useState({
+    kode_kantor_pabean: '',
+    kode_tpb: '',
+    kode_kantor_bongkar: '',
+    npwp: '',
+    nama_perusahaan: '',
+    alamat: '',
+    kota: '',
+    kode_pos: '',
+    nib: '',
+    izin_tpb: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    apiClient.get(`/tenants/${tenantId}/config`).then(r => {
+      if (r.data?.config) setConfig(prev => ({ ...prev, ...r.data.config }));
+    }).catch(() => {});
+  }, [tenantId]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await apiClient.put(`/tenants/${tenantId}/config`, { config });
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } finally { setSaving(false); }
+  }
+
+  const fields = [
+    { key: 'kode_kantor_pabean', label: 'Kode Kantor Pabean', placeholder: '060800', hint: 'Kode KPPBC untuk impor (contoh: 060800 = Tanjung Emas)' },
+    { key: 'kode_tpb',           label: 'Kode TPB',            placeholder: 'UNM502', hint: 'Kode gudang Tempat Penimbunan Berikat' },
+    { key: 'kode_kantor_bongkar',label: 'Kode Kantor Bongkar', placeholder: '060100', hint: 'Kode KPPBC tempat bongkar' },
+    { key: 'npwp',               label: 'NPWP Perusahaan',     placeholder: '001.139.605.8-505.000' },
+    { key: 'nib',                label: 'NIB',                  placeholder: '8120016200037' },
+    { key: 'nama_perusahaan',    label: 'Nama Perusahaan',      placeholder: 'PT Ungaran Sari Garments' },
+    { key: 'alamat',             label: 'Alamat',               placeholder: 'Jl. Pangeran Diponegoro No. 235' },
+    { key: 'kota',               label: 'Kota',                 placeholder: 'Semarang' },
+    { key: 'izin_tpb',           label: 'Nomor Izin TPB',       placeholder: '128/WBC.10/2020' },
+  ];
+
+  return (
+    <SectionCard title="Tenant Config" description="Konfigurasi identitas perusahaan dan kode bea cukai. Dipakai untuk generate Nomor AJU dan Draft BC 2.3.">
+      <div className="grid grid-cols-2 gap-4">
+        {fields.map(f => (
+          <div key={f.key}>
+            <label className="input-label">{f.label}</label>
+            <input
+              className="input text-xs"
+              value={(config as any)[f.key] ?? ''}
+              onChange={e => setConfig(prev => ({ ...prev, [f.key]: e.target.value }))}
+              placeholder={f.placeholder}
+            />
+            {f.hint && <p className="text-[11px] text-[#6B778C] mt-1">{f.hint}</p>}
+          </div>
+        ))}
+      </div>
+      <button onClick={save} disabled={saving} className="btn-primary mt-4">
+        {saved ? '✅ Saved' : saving ? 'Saving...' : 'Save Configuration'}
+      </button>
     </SectionCard>
   );
 }
