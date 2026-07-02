@@ -140,7 +140,6 @@ export async function ceisaSubmitRoutes(app: FastifyInstance) {
       });
     }
   );
-}
 
   // GET draft BC 2.3 payload preview
   app.get('/tenants/:tenantId/shipments/:shipmentId/ceisa-draft', async (req, reply) => {
