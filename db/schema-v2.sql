@@ -186,7 +186,8 @@ CREATE TABLE ctdm_fields (
   -- Event sourcing links
   origin_event_id   UUID REFERENCES evidence_events(id),
   last_event_id     UUID REFERENCES evidence_events(id),
-  last_event_seq    BIGINT
+  last_event_seq    BIGINT,
+  UNIQUE (tenant_id, shipment_id, document_id, field_key)
 );
 
 CREATE TABLE ctdm_field_sources (
@@ -211,6 +212,7 @@ CREATE TABLE identity_signals (
   -- HS_CODE | HAWB | LC_NUMBER | VESSEL_NAME | PRODUCT_CODE
 
   raw_value             TEXT NOT NULL,
+  normalized_value      TEXT,  -- uppercased, stripped of punctuation for matching
   producer_type         VARCHAR(30) NOT NULL,
   producer_ref          VARCHAR(255),
   extraction_confidence DECIMAL(5,4),

@@ -42,9 +42,15 @@ export const handler: Handler<DryRunEvent> = async ({ sessionId, tenantId, userI
     };
 
     for (const file of files) {
+      // Load AI config for signal extraction
+      const { rows: [aiCfg] } = await client.query(
+        `SELECT ai_provider, openai_api_key, anthropic_api_key, extraction_model_id FROM tenant_ai_config WHERE tenant_id = $1`,
+        [tenantId]
+      ).catch(() => ({ rows: [null] }));
+
       // 2. Quick classify file type from filename + light Bedrock call
       const { detectedType, detectedCategory, extractedSignals } =
-        await classifyAndExtractSignals(file.original_filename, file.s3_staging_key);
+        await classifyAndExtractSignals(file.original_filename, file.s3_staging_key, aiCfg);
 
       // 3. Duplicate check: same filename + size already in documents
       const { rows: dupes } = await client.query(
@@ -153,7 +159,8 @@ async function updateFileResult(client: any, fileId: string, data: any) {
 // Lightweight classification using filename + optional Bedrock call
 async function classifyAndExtractSignals(
   filename: string,
-  s3Key: string
+  s3Key: string,
+  aiCfg?: any
 ): Promise<{ detectedType: string; detectedCategory: string; extractedSignals: IncomingSignal[] }> {
   const lower = filename.toLowerCase();
   let detectedType = 'Unknown';
@@ -182,5 +189,38 @@ async function classifyAndExtractSignals(
   const blMatch = filename.match(/BL[-_\s]?([\w\d]+)/i) || filename.match(/[A-Z]{4}\d{7}/);
   if (blMatch) signals.push({ signalType: 'BL_NUMBER', rawValue: blMatch[0], confidence: 0.70 });
 
+  // If no signals from filename AND AI configured, read first page
+  console.log('[DryRun] filename signals:', signals.length, 'provider:', aiCfg?.ai_provider);
+  if (signals.length === 0 && aiCfg?.anthropic_api_key) {
+    try {
+      console.log('[DryRun] AI extraction for:', filename);
+      const { GetObjectCommand: GOC, S3Client: S3C } = await import('@aws-sdk/client-s3');
+      const s3local = new S3C({});
+      const obj = await s3local.send(new GOC({ Bucket: process.env.DOCUMENTS_BUCKET_NAME!, Key: s3Key }));
+      const bytes = await obj.Body!.transformToByteArray();
+      const b64 = Buffer.from(bytes).toString('base64');
+      const isPdf = filename.toLowerCase().endsWith('.pdf');
+      const prompt = 'Extract: invoice_number, bl_number, po_number. Return ONLY JSON: {"invoice_number":"","bl_number":"","po_number":""}';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': aiCfg.anthropic_api_key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: aiCfg.extraction_model_id ?? 'claude-sonnet-4-6', max_tokens: 128,
+          messages: [{ role: 'user', content: [
+            isPdf ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+                  : { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } },
+            { type: 'text', text: prompt }
+          ]}]
+        }),
+      });
+      const data = await res.json() as any;
+      const text = data.content?.[0]?.text ?? '{}';
+      const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+      if (parsed.invoice_number) signals.push({ signalType: 'INVOICE_NUMBER', rawValue: parsed.invoice_number, confidence: 0.90 });
+      if (parsed.bl_number) signals.push({ signalType: 'BL_NUMBER', rawValue: parsed.bl_number, confidence: 0.90 });
+      if (parsed.po_number) signals.push({ signalType: 'PO_NUMBER', rawValue: parsed.po_number, confidence: 0.85 });
+      console.log('[DryRun] AI response:', text?.slice(0,200));
+      console.log('[DryRun] AI signals found:', signals.length);
+    } catch(e: any) { console.warn('[DryRun] AI extract failed:', e.message?.slice(0,80)); }
+  }
   return { detectedType, detectedCategory, extractedSignals: signals };
 }

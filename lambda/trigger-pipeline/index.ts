@@ -186,9 +186,8 @@ async function invokeAI(
   maxTokens: number,
   anthropicApiKey: string | null = null
 ): Promise<string> {
-  const isOpenAI = model.startsWith('gpt-') || model.startsWith('o1') || model.startsWith('o3');
-  const isAnthropic = model.startsWith('claude-') && !model.startsWith('claude-') === false;
-  const isAnthropicDirect = anthropicApiKey && (model.startsWith('claude-') || !model.includes('.'));
+  const isAnthropicDirect = !!anthropicApiKey;  // Anthropic key takes priority
+  const isOpenAI = !isAnthropicDirect && (model.startsWith('gpt-') || model.startsWith('o1') || model.startsWith('o3'));
 
   if (isOpenAI) {
     if (!openaiApiKey) throw new Error('OpenAI API key not configured');
@@ -373,7 +372,7 @@ async function writeDocumentAndFields(
     await client.query(
       `INSERT INTO identity_signals
          (tenant_id, signal_type, raw_value, normalized_value, source_document_id, confidence, is_active)
-       VALUES ($1,$2,$3,$3,$4,$5,true)
+       VALUES ($1,$2,$3,UPPER(REGEXP_REPLACE($3,'[^A-Z0-9]','','g')),$4,$5,true)
        ON CONFLICT (tenant_id, signal_type, normalized_value) DO UPDATE SET
          confidence=GREATEST(identity_signals.confidence,EXCLUDED.confidence)`,
       [tenantId, signalType, String(value).trim(), docId, classificationConfidence]
@@ -485,7 +484,11 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
     if (!doc) throw new Error(`Document ${documentId} not found`);
 
     const { aiCfg, docTypes, fieldsByDocType } = await loadConfig(client, tenantId);
-    const model = aiCfg.extraction_model_id ?? 'amazon.nova-lite-v1:0';
+    const rawModel = aiCfg.extraction_model_id ?? 'claude-sonnet-4-6';
+    const model = aiCfg.ai_provider === 'anthropic' && rawModel.startsWith('gpt-') ? 'claude-sonnet-4-6' : rawModel;
+    const openaiApiKey = aiCfg.openai_api_key ?? null;
+    const anthropicApiKey = aiCfg.anthropic_api_key ?? null;
+    console.log('[Pipeline] AI Config:', JSON.stringify({ provider: aiCfg.ai_provider, hasOpenAI: !!openaiApiKey, hasAnthropic: !!anthropicApiKey, model, rawModel: aiCfg.extraction_model_id }));
     const maxTokens = aiCfg.extraction_max_tokens ?? 4096;
     const thresholdAuto = aiCfg.threshold_auto_approved ?? 0.85;
     const thresholdRecommended = aiCfg.threshold_recommended ?? 0.70;
@@ -540,11 +543,13 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
         // For subsequent segments: create new document records
         if (i === 0) {
           const category = getCategory(seg.type);
+          console.log('[Pipeline] Updating doc type to', seg.type);
           await client.query(
             `UPDATE documents SET document_type=$1, category=$2, status='extracting' WHERE id=$3`,
             [seg.type, category, documentId]
           );
 
+          console.log('[Pipeline] Writing extract event');
           const evtExtract = await writer.writeEvent({
             tenantId, eventTime: new Date(), eventType: 'DOCUMENT_EXTRACTED',
             producerType: 'EXTRACTION_ENGINE', producerRef: documentId,
@@ -552,7 +557,9 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
             payload: { doc_type: seg.type, fields: Object.keys(extracted).length, segment: i + 1, total_segments: segments.length },
           });
 
+          console.log('[Pipeline] Writing fields to DB');
           totalFields += await writeFields(client, tenantId, doc.shipment_id, documentId, extracted, confidenceMap, seg.confidence, thresholdAuto, thresholdRecommended, docTypeFields, evtExtract.id);
+          console.log('[Pipeline] Writing signals');
           await writeSignals(client, tenantId, documentId, extracted, seg.confidence);
           await client.query(`UPDATE documents SET status='extracted', last_event_id=$1 WHERE id=$2`, [evtExtract.id, documentId]);
 
@@ -591,6 +598,7 @@ export const handler: Handler<PipelineEvent> = async ({ documentId, tenantId }) 
              seg.type, getCategory(seg.type), evtDoc.id, evtDoc.sequenceNum]
           );
 
+          console.log('[Pipeline] Writing extract event');
           const evtExtract = await writer.writeEvent({
             tenantId, eventTime: new Date(), eventType: 'DOCUMENT_EXTRACTED',
             producerType: 'EXTRACTION_ENGINE', producerRef: newDoc.id,
@@ -683,15 +691,19 @@ async function writeFields(
     const status = confidence >= effectiveThreshold ? 'auto_approved'
       : confidence >= threshRecommended ? 'recommended' : 'review_required';
 
-    await client.query(
-      `INSERT INTO ctdm_fields
-         (tenant_id, shipment_id, document_id, field_key, resolved_value, confidence, status, last_event_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       ON CONFLICT (tenant_id, shipment_id, document_id, field_key) DO UPDATE SET
-         resolved_value=EXCLUDED.resolved_value, confidence=EXCLUDED.confidence,
-         status=EXCLUDED.status`,
-      [tenantId, shipmentId, docId, key, resolvedValue, confidence, status, evtId]
-    );
+    try {
+      await client.query(
+        `INSERT INTO ctdm_fields
+           (tenant_id, shipment_id, document_id, field_key, resolved_value, confidence, status, last_event_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (tenant_id, shipment_id, document_id, field_key) DO UPDATE SET
+           resolved_value=EXCLUDED.resolved_value, confidence=EXCLUDED.confidence,
+           status=EXCLUDED.status`,
+        [tenantId, shipmentId, docId, key, resolvedValue, confidence, status, evtId]
+      );
+    } catch(e: any) {
+      console.warn('[Pipeline] field insert skip:', key, e.message?.slice(0,80));
+    }
     count++;
   }
   return count;
@@ -706,14 +718,22 @@ async function writeSignals(client: any, tenantId: string, docId: string, extrac
   for (const [fieldKey, signalType] of Object.entries(SIGNAL_MAP)) {
     const value = extracted[fieldKey];
     if (!value || String(value).trim() === '') continue;
-    await client.query(
-      `INSERT INTO identity_signals
-         (tenant_id, signal_type, raw_value, normalized_value, source_document_id, confidence, is_active)
-       VALUES ($1,$2,$3,$3,$4,$5,true)
-       ON CONFLICT (tenant_id, signal_type, normalized_value) DO UPDATE SET
-         confidence=GREATEST(identity_signals.confidence,EXCLUDED.confidence)`,
-      [tenantId, signalType, String(value).trim(), docId, conf]
-    ).catch(() => {});
+    const sp = `sp_sig_${signalType.toLowerCase()}`;
+    try {
+      await client.query(`SAVEPOINT ${sp}`);
+      await client.query(
+        `INSERT INTO identity_signals
+           (tenant_id, signal_type, raw_value, normalized_value, source_document_id, confidence, is_active)
+         VALUES ($1,$2,$3,UPPER(REGEXP_REPLACE($3,'[^A-Z0-9]','','g')),$4,$5,true)
+         ON CONFLICT (tenant_id, signal_type, normalized_value) DO UPDATE SET
+           confidence=GREATEST(identity_signals.confidence,EXCLUDED.confidence)`,
+        [tenantId, signalType, String(value).trim(), docId, conf]
+      );
+      await client.query(`RELEASE SAVEPOINT ${sp}`);
+    } catch(e: any) {
+      await client.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(()=>{});
+      console.warn('[Pipeline] Signal skip:', signalType, e.message?.slice(0,60));
+    }
   }
 }
 
