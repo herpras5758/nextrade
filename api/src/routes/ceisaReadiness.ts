@@ -191,16 +191,6 @@ export async function ceisaReadinessRoutes(app: FastifyInstance) {
           `SELECT extraction_model_id, openai_api_key, ai_provider FROM tenant_ai_config WHERE tenant_id = $1`,
           [tenantId]
         );
-        if (aiCfg?.ai_provider === 'anthropic' && aiCfg?.anthropic_api_key) {
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': aiCfg.anthropic_api_key, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({ model: aiCfg.extraction_model_id ?? 'claude-sonnet-4-6', max_tokens: 1024,
-              messages: [{ role: 'user', content: (typeof systemContext !== 'undefined' ? systemContext + '\n\n' : '') + (typeof message !== 'undefined' ? message : (body?.prompt ?? '')) + (typeof dataContext !== 'undefined' ? '\n\n' + dataContext : '') }] }),
-          });
-          const data = await res.json() as any;
-          const _ans = data.content?.[0]?.text ?? '';
-          if (_ans) { narrative = _ans; }
         } else if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
           const prompt = `Analisis CEISA readiness berikut dan buat rekomendasi singkat (max 2 kalimat per bagian):
 Score: ${score}% | Status: ${overallStatus}
