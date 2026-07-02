@@ -62,8 +62,7 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
           Bucket: BUCKET, Key: stagingKey, ContentType: contentType,
         }), { expiresIn: 3600, unhoistableHeaders: new Set() });
 
-        await client.query(
-          // Check for duplicate by hash
+        // Check for duplicate by hash
           const fileHash = body.file_hash ?? null;
           if (fileHash) {
             const { rows: [dup] } = await client.query(
