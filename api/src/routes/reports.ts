@@ -161,17 +161,7 @@ ${shipments.slice(0, 20).map((s: any) => `${s.shipment_number} | ${s.status} | $
         const systemPrompt = 'Kamu adalah analis trade compliance NexTrade. Buat laporan profesional dalam Bahasa Indonesia berdasarkan data aktual. Sertakan: ringkasan eksekutif, temuan utama, risiko, dan rekomendasi. Format dengan heading yang jelas.';
         const userMessage = `${body.prompt}\n\n${dataContext}`;
 
-        if (aiCfg?.ai_provider === 'anthropic' && aiCfg?.anthropic_api_key) {
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': aiCfg.anthropic_api_key, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({ model: aiCfg.extraction_model_id ?? 'claude-sonnet-4-6', max_tokens: 1024,
-              messages: [{ role: 'user', content: (typeof systemContext !== 'undefined' ? systemContext + '\n\n' : '') + (typeof message !== 'undefined' ? message : (body?.prompt ?? '')) + (typeof dataContext !== 'undefined' ? '\n\n' + dataContext : '') }] }),
-          });
-          const data = await res.json() as any;
-          const _ans = data.content?.[0]?.text ?? '';
-          if (_ans) { narrative = _ans; }
-        } else if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
+        if (aiCfg?.ai_provider === 'openai' && aiCfg?.openai_api_key) {
           const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiCfg.openai_api_key}` },

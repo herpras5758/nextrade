@@ -64,7 +64,6 @@ export async function uploadSessionRoutes(app: FastifyInstance) {
 
         // Check for duplicate by hash
           const fileHash = (req.body as any)?.file_hash ?? null;
-          const fileHash = body.file_hash ?? null;
           if (fileHash) {
             const { rows: [dup] } = await client.query(
               `SELECT d.id, d.file_name FROM documents d
