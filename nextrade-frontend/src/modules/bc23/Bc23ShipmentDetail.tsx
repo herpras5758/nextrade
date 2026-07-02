@@ -109,7 +109,7 @@ export function Bc23ShipmentDetail() {
   const [shipment, setShipment]   = useState<Shipment | null>(null);
   const [docs, setDocs]           = useState<Document[]>([]);
   const [fields, setFields]       = useState<CtdmField[]>([]);
-  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [readiness, setReadiness] = useState<any>(null);
   const [ceisaResult, setCeisaResult] = useState<any>(null);
   const [draft, setDraft]             = useState<any>(null);
   const [loadingDraft, setLoadingDraft] = useState(false);
