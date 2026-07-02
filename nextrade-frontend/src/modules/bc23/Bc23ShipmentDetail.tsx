@@ -222,7 +222,7 @@ export function Bc23ShipmentDetail() {
             </div>
             <div className="flex flex-col gap-1">
               {readiness && <>
-                <span className="text-[10px] text-[#36B37E]">✅ {readiness.pass} pass</span>
+                <span className="text-[10px] text-[#36B37E]">✅ {(readiness as any).pass ?? readiness?.summary?.pass ?? 0} pass</span>
                 <span className="text-[10px] text-[#FFAB00]">⚠️ {readiness.warn} warn</span>
                 <span className="text-[10px] text-[#FF5630]">❌ {readiness.fail} fail</span>
               </>}
