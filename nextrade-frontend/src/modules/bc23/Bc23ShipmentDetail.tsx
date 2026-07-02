@@ -147,7 +147,7 @@ export function Bc23ShipmentDetail() {
           reasoning: {
             summary: r.overallStatus === 'READY' ? 'Semua checkpoint terpenuhi — siap untuk submit ke CEISA'
               : r.overallStatus === 'NEARLY_READY' ? `Hampir siap — ${r.summary?.warn ?? 0} checkpoint perlu perhatian`
-              : `Not ready — ${r.summary?.fail ?? 0} checkpoints failed: ${(r.checkpoints ?? []).filter((c:any) => c.status === 'FAIL').map((c:any) => c.name).slice(0,3).join(', ')}`,
+              : `Not ready — ${r.summary?.fail ?? 0} checkpoints failed: ${(r.checkpoints ?? []).filter((c:any) => c.status === 'FAIL').map((c:any) => c.name).filter(Boolean).slice(0,3).join(', ') || 'all checkpoints need data'}`,
             recommendation: r.summary?.mandatoryFieldsMissing?.length > 0
               ? `Field wajib CEISA yang belum ada: ${r.summary.mandatoryFieldsMissing.slice(0,5).map((f:any) => f.display_name ?? f.field_key).join(', ')}`
               : r.overallStatus === 'READY' ? 'Ready to proceed to Draft BC 2.3' : 'Upload missing documents or verify fields that need review',
