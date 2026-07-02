@@ -225,4 +225,82 @@ export async function adminRoutes(app: FastifyInstance) {
       return tenant ?? reply.code(404).send({ error: 'Tenant not found' });
     });
   });
+
+  // ── User Management ──────────────────────────────────────────────────────
+
+  app.get('/tenants/:tenantId/admin/users', async (req, reply) => {
+    const { tenantId } = req.params as any;
+    assertTenantAccess(req.auth!, tenantId);
+    if (!req.auth!.roles.includes('admin')) return reply.code(403).send({ error: 'Admin only' });
+    try {
+      const { CognitoIdentityProviderClient, ListUsersCommand } = await import('@aws-sdk/client-cognito-identity-provider');
+      const cognito = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION_CORE });
+      const { Users } = await cognito.send(new ListUsersCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Limit: 60,
+      }));
+      const users = (Users ?? []).map((u: any) => {
+        const attrs: Record<string, string> = {};
+        for (const a of (u.Attributes ?? [])) attrs[a.Name!] = a.Value!;
+        const tenantIds = (attrs['custom:tenant_ids'] ?? '').split(',').filter(Boolean);
+        if (!tenantIds.includes(tenantId)) return null;
+        return {
+          id: u.Username, email: attrs.email, given_name: attrs.given_name,
+          role: attrs['custom:role'] ?? 'operator', enabled: u.Enabled,
+        };
+      }).filter(Boolean);
+      return { users };
+    } catch (e: any) { return { users: [], error: e.message }; }
+  });
+
+  app.post('/tenants/:tenantId/admin/users', async (req, reply) => {
+    const { tenantId } = req.params as any;
+    assertTenantAccess(req.auth!, tenantId);
+    if (!req.auth!.roles.includes('admin')) return reply.code(403).send({ error: 'Admin only' });
+    const { email, given_name, role } = req.body as any;
+    if (!email) return reply.code(400).send({ error: 'Email required' });
+    try {
+      const { CognitoIdentityProviderClient, AdminCreateUserCommand } = await import('@aws-sdk/client-cognito-identity-provider');
+      const cognito = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION_CORE });
+      await cognito.send(new AdminCreateUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID!,
+        Username: email, MessageAction: 'SUPPRESS',
+        TemporaryPassword: `ShipX${Math.random().toString(36).slice(2,10)}!`,
+        UserAttributes: [
+          { Name: 'email', Value: email }, { Name: 'email_verified', Value: 'true' },
+          { Name: 'given_name', Value: given_name ?? email.split('@')[0] },
+          { Name: 'custom:tenant_ids', Value: tenantId },
+          { Name: 'custom:role', Value: role ?? 'operator' },
+        ],
+      }));
+      return { success: true, message: `User ${email} dibuat` };
+    } catch (e: any) { return reply.code(400).send({ error: e.message }); }
+  });
+
+  app.put('/tenants/:tenantId', async (req, reply) => {
+    const { tenantId } = req.params as any;
+    assertTenantAccess(req.auth!, tenantId);
+    const body = req.body as any;
+    return withTenant(tenantId, async (client) => {
+      await client.query(
+        `UPDATE tenants SET name=COALESCE($1,name), config=COALESCE($2::jsonb,config) WHERE id=$3`,
+        [body.name ?? null, body.config ? JSON.stringify(body.config) : null, tenantId]
+      );
+      return { success: true };
+    });
+  });
+
+  app.put('/tenants/:tenantId/admin/doc-types/:docTypeCode', async (req, reply) => {
+    const { tenantId, docTypeCode } = req.params as any;
+    assertTenantAccess(req.auth!, tenantId);
+    const { is_enabled } = req.body as any;
+    return withTenant(tenantId, async (client) => {
+      await client.query(
+        `UPDATE tenant_doc_type_config SET is_enabled=$1 WHERE tenant_id=$2 AND doc_type_code=$3`,
+        [is_enabled, tenantId, docTypeCode]
+      );
+      return { success: true };
+    });
+  });
+
 }

@@ -241,7 +241,7 @@ export async function shipmentRoutes(app: FastifyInstance) {
       for (const row of fields) f[row.field_key] = row.value ?? '';
 
       // Map to BC 2.3 CEISA format (18 mandatory fields per workflow)
-      const bc23: Record<string, any> = {
+      const bc23 = {
         // Header
         jenis_dokumen: 'BC 2.3',
         // 1. Shipper/Pemasok
@@ -296,11 +296,11 @@ export async function shipmentRoutes(app: FastifyInstance) {
         // Currency
         valuta: f.currency ?? 'USD',
         kurs_ndpbm: f.kurs ?? '',
+        // Completeness flags
+        _missing_fields: Object.entries(bc23)
+          .filter(([k, v]) => !k.startsWith('_') && !v)
+          .map(([k]) => k),
       };
-      // Completeness flags
-      bc23._missing_fields = Object.entries(bc23)
-        .filter(([k, v]) => !k.startsWith('_') && !v)
-        .map(([k]) => k);
 
       // Save draft
       await client.query(
