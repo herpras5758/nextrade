@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+}
+
+@layer components {
+  .page-container { @apply p-5 max-w-full; }
+  .page-title { @apply text-lg font-bold text-[#1B2A4A] mb-0.5; }
+  .page-subtitle { @apply text-sm text-[#6B778C]; }
+
+  .card { @apply bg-white border border-[#DFE1E6] rounded-lg; }
+
+  .btn { @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-colors border border-transparent; }
+  .btn-primary { @apply bg-[#0EA5A4] text-white hover:bg-[#0d9494]; }
+  .btn-ghost { @apply bg-transparent text-[#6B778C] border-[#DFE1E6] hover:bg-[#F4F5F7] hover:text-[#1B2A4A]; }
+  .btn-danger { @apply bg-transparent text-red-500 border-red-200 hover:bg-red-50; }
+
+  .input { @apply bg-white border border-[#DFE1E6] text-[#1B2A4A] rounded-md px-3 py-1.5 text-xs w-full outline-none transition-colors focus:border-[#0EA5A4]; }
+
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide; }
+  .badge-blue { @apply bg-blue-100 text-blue-700; }
+  .badge-green { @apply bg-green-100 text-green-700; }
+  .badge-yellow { @apply bg-yellow-100 text-yellow-700; }
+  .badge-red { @apply bg-red-100 text-red-600; }
+  .badge-gray { @apply bg-[#F4F5F7] text-[#6B778C]; }
+
+  .data-table { @apply w-full; }
+  .data-table th { @apply text-left text-[10px] font-semibold text-[#97A0AF] uppercase tracking-wider px-3 py-2.5 border-b border-[#DFE1E6] bg-[#F4F5F7]; }
+  .data-table td { @apply px-3 py-2.5 border-b border-[#F4F5F7] text-xs text-[#1B2A4A] align-middle; }
+  .data-table tr:hover td { @apply bg-[#F8F9FA]; }
+  .data-table tr:last-child td { @apply border-b-0; }
+}
