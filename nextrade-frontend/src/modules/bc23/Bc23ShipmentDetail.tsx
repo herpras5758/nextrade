@@ -33,7 +33,6 @@ interface Readiness {
   is_ready?: boolean;
   fail?: number;
   warn?: number;
-};
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
