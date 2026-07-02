@@ -342,6 +342,7 @@ CREATE TABLE upload_session_files (
   original_filename    VARCHAR(500),
   s3_staging_key       VARCHAR(500),
   file_size_bytes      BIGINT,
+  file_hash            VARCHAR(64),
   detected_type        VARCHAR(100),
   detected_category    VARCHAR(30),
   matched_shipment_id  UUID REFERENCES shipments(id),
