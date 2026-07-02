@@ -241,7 +241,7 @@ export async function shipmentRoutes(app: FastifyInstance) {
       for (const row of fields) f[row.field_key] = row.value ?? '';
 
       // Map to BC 2.3 CEISA format (18 mandatory fields per workflow)
-      const bc23 = {
+      const bc23: Record<string, any> = {
         // Header
         jenis_dokumen: 'BC 2.3',
         // 1. Shipper/Pemasok

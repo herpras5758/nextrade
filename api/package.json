@@ -15,11 +15,12 @@
     "zod": "^3.23.8",
     "@aws-sdk/client-secrets-manager": "^3.620.0",
     "@aws-sdk/client-s3": "^3.620.0",
-    "@aws-sdk/s3-request-presigner": "^3.620.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0",
     "jwks-rsa": "^3.1.0",
     "jsonwebtoken": "^9.0.2",
     "@aws-sdk/client-lambda": "^3.620.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.620.0"
+    "@aws-sdk/client-bedrock-runtime": "^3.620.0",
+    "@aws-sdk/client-sqs": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
