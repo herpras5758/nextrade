@@ -161,17 +161,28 @@ function AiSection({ tenantId }: { tenantId: string }) {
           <div>
             <label className="input-label">AI Provider</label>
           <select value={cfg.ai_provider ?? 'openai'}
-            onChange={e => setCfg(p => ({ ...p, ai_provider: e.target.value }))}
+            onChange={e => setCfg((p: any) => ({ ...p, ai_provider: e.target.value }))}
             className="input text-xs mb-3">
+            <option value="anthropic">Anthropic (Claude direct)</option>
             <option value="openai">OpenAI (GPT-4o)</option>
             <option value="bedrock">AWS Bedrock (Claude/Nova)</option>
           </select>
 
+          {cfg.ai_provider === 'anthropic' && (
+            <div className="mb-3">
+              <label className="input-label">Anthropic API Key</label>
+              <input type="password" value={cfg.anthropic_api_key ?? ''}
+                onChange={e => setCfg((p: any) => ({ ...p, anthropic_api_key: e.target.value }))}
+                className="input text-xs font-mono"
+                placeholder="sk-ant-..." />
+              <p className="text-[11px] text-[#6B778C] mt-1">Get key from console.anthropic.com — no approval required</p>
+            </div>
+          )}
           {(cfg.ai_provider === 'openai' || !cfg.ai_provider) && (
             <div className="mb-3">
               <label className="input-label">OpenAI API Key</label>
               <input type="password" value={cfg.openai_api_key ?? ''}
-                onChange={e => setCfg(p => ({ ...p, openai_api_key: e.target.value }))}
+                onChange={e => setCfg((p: any) => ({ ...p, openai_api_key: e.target.value }))}
                 className="input text-xs font-mono"
                 placeholder="sk-..." />
               <p className="text-[11px] text-[#6B778C] mt-1">API key disimpan terenkripsi di database</p>
