@@ -1,3 +1,4 @@
+import { CognitoIdentityProviderClient, ListUsersCommand, AdminCreateUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { FastifyInstance } from 'fastify';
 import { withTenant } from '../lib/db.js';
 import { assertTenantAccess } from '../middleware/auth.js';
@@ -233,7 +234,6 @@ export async function adminRoutes(app: FastifyInstance) {
     assertTenantAccess(req.auth!, tenantId);
     if (!req.auth!.roles.includes('admin')) return reply.code(403).send({ error: 'Admin only' });
     try {
-      const { CognitoIdentityProviderClient, ListUsersCommand } = await import('@aws-sdk/client-cognito-identity-provider');
       const cognito = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION_CORE });
       const { Users } = await cognito.send(new ListUsersCommand({
         UserPoolId: process.env.COGNITO_USER_POOL_ID!,
@@ -260,7 +260,6 @@ export async function adminRoutes(app: FastifyInstance) {
     const { email, given_name, role } = req.body as any;
     if (!email) return reply.code(400).send({ error: 'Email required' });
     try {
-      const { CognitoIdentityProviderClient, AdminCreateUserCommand } = await import('@aws-sdk/client-cognito-identity-provider');
       const cognito = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION_CORE });
       await cognito.send(new AdminCreateUserCommand({
         UserPoolId: process.env.COGNITO_USER_POOL_ID!,
