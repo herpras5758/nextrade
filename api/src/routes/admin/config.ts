@@ -43,7 +43,7 @@ export async function adminConfigRoutes(app: FastifyInstance) {
             ai_provider, openai_api_key, anthropic_api_key,
             extraction_model_id, extraction_max_tokens,
             last_event_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          ON CONFLICT (tenant_id) DO UPDATE SET
            bedrock_model_id = EXCLUDED.bedrock_model_id,
            max_tokens = EXCLUDED.max_tokens,
