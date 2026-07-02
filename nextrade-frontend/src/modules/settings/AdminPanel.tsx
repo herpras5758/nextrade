@@ -161,7 +161,7 @@ function AiSection({ tenantId }: { tenantId: string }) {
           <div>
             <label className="input-label">AI Provider</label>
           <select value={cfg.ai_provider ?? 'openai'}
-            onChange={e => setCfg(p => ({ ...p, ai_provider: e.target.value }))}
+            onChange={e => setCfg((p: any) => ({ ...p, ai_provider: e.target.value }))}
             className="input text-xs mb-3">
             <option value="openai">OpenAI (GPT-4o)</option>
             <option value="bedrock">AWS Bedrock (Claude/Nova)</option>
@@ -171,7 +171,7 @@ function AiSection({ tenantId }: { tenantId: string }) {
             <div className="mb-3">
               <label className="input-label">OpenAI API Key</label>
               <input type="password" value={cfg.openai_api_key ?? ''}
-                onChange={e => setCfg(p => ({ ...p, openai_api_key: e.target.value }))}
+                onChange={e => setCfg((p: any) => ({ ...p, openai_api_key: e.target.value }))}
                 className="input text-xs font-mono"
                 placeholder="sk-..." />
               <p className="text-[11px] text-[#6B778C] mt-1">API key disimpan terenkripsi di database</p>
@@ -643,7 +643,7 @@ function BcAccessSection({ tenantId }: { tenantId: string }) {
 
 // ── Extraction Engine Section ─────────────────────────────────────────────────
 function ExtractionSection({ tenantId }: { tenantId: string }) {
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<any>({
     extraction_approach: 'bedrock_vision',
     extraction_model_id: 'anthropic.claude-sonnet-4-6',
     extraction_max_tokens: 4096,
@@ -806,7 +806,7 @@ function ExtractionSection({ tenantId }: { tenantId: string }) {
 
 // ── Tenant Config Section ─────────────────────────────────────────────────────
 function TenantConfigSection({ tenantId }: { tenantId: string }) {
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<any>({
     kode_kantor_pabean: '',
     kode_tpb: '',
     kode_kantor_bongkar: '',

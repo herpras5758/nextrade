@@ -25,8 +25,15 @@ interface Checkpoint {
   status: 'PASS' | 'WARN' | 'FAIL' | 'NA'; detail: string; confidence: number;
 }
 interface Readiness {
-  score: number; is_ready: boolean; pass: number; warn: number; fail: number;
-  checkpoints: Checkpoint[]; reasoning: { summary: string; recommendation: string; failed_items: string[]; warned_items: string[] };
+  score?: number;
+  overallStatus?: string;
+  checkpoints?: any[];
+  reasoning?: { summary: string; recommendation: string; failed_items?: string[]; warned_items?: string[] };
+  summary?: { pass: number; warn: number; fail: number; mandatoryFieldsMissing?: any[] };
+  is_ready?: boolean;
+  fail?: number;
+  warn?: number;
+};
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -230,7 +237,7 @@ export function Bc23ShipmentDetail() {
         </div>
 
         {/* AI summary bar */}
-        {readiness?.reasoning?.summary && (
+        {(readiness as any)?.reasoning?.summary && (
           <div className="border-t border-[#DFE1E6] px-4 py-2.5 bg-teal-50 flex items-start gap-2">
             <Sparkles size={13} className="text-[#0EA5A4] flex-shrink-0 mt-0.5" />
             <p className="text-xs text-[#0EA5A4]">
@@ -461,7 +468,7 @@ export function Bc23ShipmentDetail() {
               </div>
             )}
 
-            {readiness?.score >= 70 && !ceisaResult && (
+            {(readiness?.score ?? 0) >= 70 && !ceisaResult && (
               <div className="checkpoint-pass mb-4">
                 <CheckCircle size={16} className="text-[#36B37E] flex-shrink-0" />
                 <div>
